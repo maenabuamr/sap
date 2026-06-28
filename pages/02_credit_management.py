@@ -1,8 +1,22 @@
 import streamlit as st
-import data_loader
+from data_loader import load_sales, load_aging, load_checks
 
-st.title("Credit Management")
+st.set_page_config(
+    page_title="Credit Management",
+    page_icon="💰",
+    layout="wide"
+)
 
-st.write(data_loader.__file__)
+st.title("💰 Credit Management")
 
-st.write(dir(data_loader))
+sales = load_sales()
+aging = load_aging()
+checks = load_checks()
+
+col1, col2, col3 = st.columns(3)
+
+col1.metric("Sales Records", len(sales))
+col2.metric("Aging Records", len(aging))
+col3.metric("Checks Records", len(checks))
+
+st.success("Data loaded successfully ✅")
