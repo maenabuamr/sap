@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 
-
 def render_customer_card(df: pd.DataFrame):
 
     st.subheader("👤 Customer 360")
@@ -48,44 +47,71 @@ def render_customer_card(df: pd.DataFrame):
         )
 
     st.divider()
+    
+    st.metric(
+        "⭐ Customer Score",
+        f"{int(row.get('CustomerScore', 100))}/100"
+    )
 
     # =====================================================
-    # بيانات العميل
+    # Customer Health
+    # =====================================================
+
+    st.markdown("### ❤️ Customer Health")
+
+    score = int(row.get("CustomerScore", 100))
+
+    st.progress(score / 100)
+
+    if score >= 90:
+        st.success("🟢 عميل ممتاز")
+    elif score >= 70:
+        st.info("🔵 عميل جيد")
+    elif score >= 50:
+        st.warning("🟡 يحتاج متابعة")
+    else:
+        st.error("🔴 عميل عالي الخطورة")
+    
+    st.divider()
+
+    # =====================================================
+    # بيانات العميل وملخص المبيعات
     # =====================================================
 
     left, right = st.columns(2)
 
     with left:
-
         st.markdown("### 📋 معلومات العميل")
-
         st.write(f"**Reference Number :** {row['ReferenceNumber']}")
         st.write(f"**المندوب :** {row['Salesperson']}")
         st.write(f"**فترة السداد :** {row['PaymentTerm']}")
         st.write(f"**الخطورة :** {row['Risk']}")
+        st.write(f"**عدد الفواتير :** {int(row.get('InvoiceCount', 0))}")
+        st.write(f"**آخر فاتورة :** {row.get('LastInvoiceNo', '-')}")
+        st.write(f"**أفضل صنف :** {row.get('TopItem','-')}")
+        st.write(f"**أفضل مجموعة :** {row.get('TopGroup','-')}")
 
     with right:
-
         st.markdown("### 💰 ملخص المبيعات")
-
         st.metric(
             "إجمالي المبيعات",
-            f"{row.get('TotalSales',0):,.3f}"
+            f"{row.get('TotalSales', 0):,.3f}"
         )
-
+        st.metric(
+            "متوسط الفاتورة",
+            f"{row.get('AvgInvoice', 0):,.3f}"
+        )
         st.metric(
             "عدد الفواتير",
-            int(row.get("InvoiceCount",0))
+            int(row.get('InvoiceCount', 0))
         )
-
         st.metric(
             "إجمالي الكمية",
-            f"{row.get('TotalQty',0):,.2f}"
+            f"{row.get('TotalQty', 0):,.2f}"
         )
-
         st.metric(
             "قيمة الشيكات",
-            f"{row.get('CheckAmount',0):,.3f}"
+            f"{row.get('CheckAmount', 0):,.3f}"
         )
 
     st.divider()
@@ -97,9 +123,7 @@ def render_customer_card(df: pd.DataFrame):
     st.markdown("### 📊 أعمار الذمم")
 
     aging = pd.DataFrame({
-
         "الفترة": [
-
             "0-15",
             "16-30",
             "31-45",
@@ -107,11 +131,8 @@ def render_customer_card(df: pd.DataFrame):
             "61-75",
             "76-90",
             "+90"
-
         ],
-
         "القيمة": [
-
             row["Age_0_15"],
             row["Age_16_30"],
             row["Age_31_45"],
@@ -119,9 +140,7 @@ def render_customer_card(df: pd.DataFrame):
             row["Age_61_75"],
             row["Age_76_90"],
             row["Age_90_Plus"]
-
         ]
-
     })
 
     st.bar_chart(
@@ -138,19 +157,14 @@ def render_customer_card(df: pd.DataFrame):
     st.markdown("### 🤖 توصية النظام")
 
     if row["Age_90_Plus"] > 0:
-
         st.error(
             "يوصى بإيقاف البيع مؤقتًا والمتابعة الفورية مع العميل."
         )
-
     elif row["DueBalance"] > 0:
-
         st.warning(
             "يوصى بمتابعة العميل لتحصيل الذمم قبل إصدار مبيعات جديدة."
         )
-
     else:
-
         st.success(
             "وضع العميل ممتاز ولا توجد إجراءات مطلوبة."
         )
