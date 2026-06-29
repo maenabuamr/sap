@@ -6,13 +6,83 @@ class SalesIntelligence:
         self.df = sales.copy()
 
     # ======================================================
+    # Customer Frequency Analysis
+    # ======================================================
+    def customer_frequency(self):
+        if self.df.empty:
+            return pd.DataFrame()
+
+        # التأكد من وجود الأعمدة الأساسية للتحليل لتجنب توقف البرنامج
+        if "CustomerName" not in self.df.columns or "Month" not in self.df.columns:
+            return pd.DataFrame()
+
+        groupby_cols = ["CustomerName"]
+        if "ReferenceNumber" in self.df.columns:
+            groupby_cols.insert(0, "ReferenceNumber")
+
+        # تجهيز دالة الـ Aggregation ديناميكياً بناءً على توفر رقم الفاتورة DocNum
+        agg_dict = {
+            "Month": lambda x: x.nunique(),
+            "Amt": "sum"
+        }
+        if "DocNum" in self.df.columns:
+            agg_dict["DocNum"] = "nunique"
+
+        # تجميع البيانات وحساب المؤشرات
+        freq = self.df.groupby(groupby_cols, as_index=False).agg(agg_dict)
+        
+        # إعادة تسمية الأعمدة الناتجة لشكل منظم
+        rename_dict = {"Month": "Months", "Amt": "Sales"}
+        if "DocNum" in self.df.columns:
+            rename_dict["DocNum"] = "Invoices"
+        freq = freq.rename(columns=rename_dict)
+
+        # حساب التغطية بناءً على إجمالي الأشهر المتاحة بالملف
+        total_months = self.df["Month"].nunique()
+        if total_months == 0:
+            total_months = 1
+            
+        freq["TotalMonths"] = total_months
+        freq["Coverage"] = ((freq["Months"] / total_months) * 100).round(1)
+
+        # دالة التصنيف الداخلي للعملاء
+        def classify(months):
+            if months == total_months:
+                return "🟢 Loyal"
+            elif months >= total_months - 1:
+                return "🟡 Active"
+            elif months >= (total_months / 2):
+                return "🟠 Occasional"
+            else:
+                return "🔴 Rare"
+
+        freq["Category"] = freq["Months"].apply(classify)
+
+        # الترتيب تنازلياً حسب الأشهر الأكثر تكراراً ثم المبيعات الأعلى
+        return freq.sort_values(by=["Months", "Sales"], ascending=[False, False])
+
+    # ======================================================
+    # Frequency Summary
+    # ======================================================
+    def frequency_summary(self):
+        freq = self.customer_frequency()
+
+        if freq.empty:
+            return {}
+
+        summary = {}
+        for months in sorted(freq["Months"].unique(), reverse=True):
+            summary[int(months)] = len(freq[freq["Months"] == months])
+
+        return summary
+
+    # ======================================================
     # Month Growth
     # ======================================================
     def month_growth(self):
         if self.df.empty:
             return None
 
-        # التأكد من وجود أعمدة التاريخ والمبيعات
         if "Year" not in self.df.columns or "Month" not in self.df.columns or "Amt" not in self.df.columns:
             return None
 
@@ -62,7 +132,6 @@ class SalesIntelligence:
         if self.df.empty or "CustomerName" not in self.df.columns:
             return None
 
-        # تحديد الأعمدة المتاحة للمجموعات لتفادي خطأ عدم وجود ReferenceNumber
         groupby_cols = ["CustomerName"]
         if "ReferenceNumber" in self.df.columns:
             groupby_cols.insert(0, "ReferenceNumber")
@@ -82,7 +151,6 @@ class SalesIntelligence:
         if self.df.empty:
             return None
 
-        # مرونة في فحص اسم العمود للمجموعات
         group_col = "ItemGroup" if "ItemGroup" in self.df.columns else ("Item_Group" if "Item_Group" in self.df.columns else None)
         
         if not group_col:
@@ -122,13 +190,12 @@ class SalesIntelligence:
         if self.df.empty or "Amt" not in self.df.columns:
             return 0
             
-        # استخدام DocNum أو إحصاء السطور كبديل الفواتير الفريدة
         invoice_col = "DocNum" if "DocNum" in self.df.columns else None
         
         if invoice_col:
             invoices = self.df[invoice_col].nunique()
         else:
-            invoices = len(self.df) # حماية في حال غياب عمود رقم الفاتورة
+            invoices = len(self.df)
 
         if invoices == 0:
             return 0
@@ -144,24 +211,19 @@ class SalesIntelligence:
         if self.df.empty:
             return ["لا توجد بيانات متاحة لتحليلها."]
 
-        # 1. أفضل مندوب
         top_sp = self.top_salesperson()
         if top_sp is not None:
             summary.append(f"🏆 أفضل مندوب: {top_sp['Salesperson']} بمبيعات قيمتها {top_sp['Sales']:,.2f}")
 
-        # 2. أفضل عميل
         top_cust = self.top_customer()
         if top_cust is not None:
             summary.append(f"👥 أفضل عميل: {top_cust['CustomerName']} بمشتريات قيمتها {top_cust['Sales']:,.2f}")
 
-        # 3. أعلى مجموعة مواد
         top_grp = self.top_group()
         if top_grp is not None:
-            # قراءة اسم الحقل ديناميكياً سواء كان ItemGroup أو Item_Group
             group_field = "ItemGroup" if "ItemGroup" in top_grp else "Item_Group"
             summary.append(f"📦 أعلى مجموعة: {top_grp[group_field]} بمبيعات قيمتها {top_grp['Sales']:,.2f}")
 
-        # 4. متوسط الفاتورة
         summary.append(f"💵 متوسط الفاتورة: {self.average_invoice():,.3f}")
 
         return summary
