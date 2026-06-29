@@ -15,31 +15,21 @@ class SalesMetrics:
 
         return self.df["Amt"].sum()
 
+    def total_qty(self):
+
+        return self.df["QYT"].sum()
+    def quantity(self):
+         return self.total_qty()
+
     def invoices(self):
 
         return self.df["DocNum"].nunique()
-
-    def quantity(self):
-
-        return self.df["QYT"].sum()
 
     def customers(self):
 
         return self.df["ReferenceNumber"].nunique()
 
-    def salespersons(self):
-
-        return self.df["Salesperson"].nunique()
-
-    def items(self):
-
-        return self.df["ItemCode"].nunique()
-
-    def item_groups(self):
-
-        return self.df["ItemGroup"].nunique()
-
-    def average_invoice(self):
+    def avg_invoice(self):
 
         invoices = self.invoices()
 
@@ -49,101 +39,7 @@ class SalesMetrics:
         return self.total_sales() / invoices
 
     # ==========================================
-    # Top Customers
-    # ==========================================
-
-    def top_customers(self, top=10):
-
-        return (
-
-            self.df
-
-            .groupby("CustomerName", as_index=False)
-
-            .agg(
-
-                Sales=("Amt", "sum"),
-
-                Qty=("QYT", "sum"),
-
-                Invoices=("DocNum", "nunique"),
-
-            )
-
-            .sort_values(
-
-                "Sales",
-
-                ascending=False
-
-            )
-
-            .head(top)
-
-        )
-
-    # ==========================================
-    # Top Items
-    # ==========================================
-
-    def top_items(self, top=10):
-
-        return (
-
-            self.df
-
-            .groupby("ItemDescription", as_index=False)
-
-            .agg(
-
-                Sales=("Amt", "sum"),
-
-                Qty=("QYT", "sum"),
-
-            )
-
-            .sort_values(
-
-                "Sales",
-
-                ascending=False
-
-            )
-
-            .head(top)
-
-        )
-
-    # ==========================================
-    # Top Item Groups
-    # ==========================================
-
-    def top_groups(self):
-
-        return (
-
-            self.df
-
-            .groupby("ItemGroup", as_index=False)
-
-            .agg(
-
-                Sales=("Amt", "sum"),
-
-            )
-
-            .sort_values(
-
-                "Sales",
-
-                ascending=False
-
-            )
-
-        )
-
-    # ==========================================
-    # Monthly Sales
+    # Charts
     # ==========================================
 
     def monthly_sales(self):
@@ -162,7 +58,7 @@ class SalesMetrics:
 
             .agg(
 
-                Sales=("Amt", "sum"),
+                Sales=("Amt", "sum")
 
             )
 
@@ -171,5 +67,131 @@ class SalesMetrics:
                 ["Year", "Month"]
 
             )
+
+        )
+
+    def salespersons(self):
+
+        return (
+
+            self.df
+
+            .groupby(
+
+                "Salesperson",
+
+                as_index=False
+
+            )
+
+            .agg(
+
+                Sales=("Amt", "sum")
+
+            )
+
+            .sort_values(
+
+                "Sales",
+
+                ascending=False
+
+            )
+
+        )
+
+    def item_groups(self):
+
+        return (
+
+            self.df
+
+            .groupby(
+
+                "ItemGroup",
+
+                as_index=False
+
+            )
+
+            .agg(
+
+                Sales=("Amt", "sum")
+
+            )
+
+            .sort_values(
+
+                "Sales",
+
+                ascending=False
+
+            )
+
+        )
+
+    def top_customers(self, top=20):
+
+        return (
+
+            self.df
+
+            .groupby(
+
+                ["ReferenceNumber", "CustomerName"],
+
+                as_index=False
+
+            )
+
+            .agg(
+
+                Sales=("Amt", "sum")
+
+            )
+
+            .sort_values(
+
+                "Sales",
+
+                ascending=False
+
+            )
+
+            .head(top)
+
+        )
+
+    def top_items(self, top=20):
+
+        return (
+
+            self.df
+
+            .groupby(
+
+                ["ItemCode", "ItemDescription"],
+
+                as_index=False
+
+            )
+
+            .agg(
+
+                Sales=("Amt", "sum"),
+
+                Qty=("QYT", "sum")
+
+            )
+
+            .sort_values(
+
+                "Sales",
+
+                ascending=False
+
+            )
+
+            .head(top)
 
         )
