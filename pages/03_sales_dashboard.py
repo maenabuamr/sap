@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from data_loader import load_sales
 from core.sales_metrics import SalesMetrics
+from core.sales_intelligence import SalesIntelligence
 
 # ==========================================================
 # إعدادات الصفحة
@@ -79,6 +80,18 @@ if item_desc_col in sales_filtered.columns:
 
 # تهيئة كلاس المقاييس بناءً على البيانات المفلترة بالكامل
 metrics = SalesMetrics(sales_filtered)
+intel = SalesIntelligence(sales_filtered)
+# ==========================================================
+# AI Sales Insights
+# ==========================================================
+
+st.subheader("🤖 AI Sales Insights")
+
+for line in intel.ai_summary():
+
+    st.info(line)
+
+st.divider()
 
 # ==========================================================
 # المؤشرات الرئيسية (KPIs) - السطر الأول
