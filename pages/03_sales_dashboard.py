@@ -20,6 +20,10 @@ st.title("📈 Sales Analytics")
 # ==========================================================
 sales_raw = load_sales()
 
+# تنظيف البيانات الأساسية لتجنب المشاكل أثناء الفلترة والتجميع
+sales_raw["CustomerName"] = sales_raw["CustomerName"].fillna("عميل غير معروف")
+sales_raw["ReferenceNumber"] = sales_raw["ReferenceNumber"].astype(str).str.strip().fillna("-")
+
 # ==========================================================
 # الفلاتر - القائمة الجانبية (Filters - Sidebar)
 # ==========================================================
@@ -41,12 +45,12 @@ month = st.sidebar.selectbox("الشهر", months)
 if month != "الكل":
     sales_filtered = sales_filtered[sales_filtered["Month"] == month]
 
-# 3. فلتر المندوب
-salespersons_list = ["الكل"] + sorted(sales_filtered["Salesperson"].unique().tolist())
-sp = st.sidebar.selectbox("المندوب", salespersons_list)
+# 3. فلتر المندوب (تعديل: متعدد الاختيارات Multi-select)
+salespersons_list = sorted(sales_filtered["Salesperson"].dropna().unique().tolist())
+selected_sps = st.sidebar.multiselect("المندوبين", salespersons_list, default=[])
 
-if sp != "الكل":
-    sales_filtered = sales_filtered[sales_filtered["Salesperson"] == sp]
+if selected_sps:
+    sales_filtered = sales_filtered[sales_filtered["Salesperson"].isin(selected_sps)]
 
 # 4. فلتر اسم العميل (CustomerName)
 customer_col = "CustomerName"
@@ -57,24 +61,24 @@ if customer_col in sales_filtered.columns:
     if selected_customer != "الكل":
         sales_filtered = sales_filtered[sales_filtered[customer_col] == selected_customer]
 
-# 5. فلتر مجموعة المواد (ItemGroup)
+# 5. فلتر مجموعة المواد (تعديل: متعدد الاختيارات Multi-select)
 item_group_col = "ItemGroup" if "ItemGroup" in sales_filtered.columns else ("Item_Group" if "Item_Group" in sales_filtered.columns else None)
 
 if item_group_col:
-    groups_list = ["الكل"] + sorted(sales_filtered[item_group_col].dropna().unique().tolist())
-    selected_group = st.sidebar.selectbox("مجموعة المواد", groups_list)
+    groups_list = sorted(sales_filtered[item_group_col].dropna().unique().tolist())
+    selected_groups = st.sidebar.multiselect("مجموعات المواد", groups_list, default=[])
     
-    if selected_group != "الكل":
-        sales_filtered = sales_filtered[sales_filtered[item_group_col] == selected_group]
+    if selected_groups:
+        sales_filtered = sales_filtered[sales_filtered[item_group_col].isin(selected_groups)]
 
-# 6. فلتر اسم المادة (ItemDescription)
+# 6. فلتر اسم المادة (تعديل: متعدد الاختيارات Multi-select)
 item_desc_col = "ItemDescription"
 if item_desc_col in sales_filtered.columns:
-    items_list = ["الكل"] + sorted(sales_filtered[item_desc_col].dropna().unique().tolist())
-    selected_item = st.sidebar.selectbox("اسم المادة", items_list)
+    items_list = sorted(sales_filtered[item_desc_col].dropna().unique().tolist())
+    selected_items = st.sidebar.multiselect("أسماء المواد", items_list, default=[])
     
-    if selected_item != "الكل":
-        sales_filtered = sales_filtered[sales_filtered[item_desc_col] == selected_item]
+    if selected_items:
+        sales_filtered = sales_filtered[sales_filtered[item_desc_col].isin(selected_items)]
 
 
 # تهيئة كلاس المقاييس
@@ -125,14 +129,24 @@ with c4:
 st.divider()
 
 # ==========================================================
-# التقرير الحقيقي المتكامل المعتمد على الرقم المرجعي كلياً
+# التقرير الحقيقي المتكامل المعتمد على الرقم المرجعي كلياً مع معالجة الاستثناءات
 # ==========================================================
 st.subheader("🔄 تقرير انتظام وقوة العملاء البيعية (Reference-Based Comprehensive Analytics)")
 
-# الاعتماد المباشر على العمود الصحيح المحدد من قبلك
 ref_col = "ReferenceNumber"
 
 if ref_col in sales_raw.columns and "Month" in sales_filtered.columns:
+    
+    # حل مشكلة الـ (-) : نقوم بعمل معرف تجميع ذكي (Calc_Group_ID)
+    # إذا كانت قيمة الرقم المرجعي فارغة أو تساوي "-"، نجعل المعرف هو اسم العميل لكي لا يندمجوا في سطر واحد
+    def create_calc_group_id(row):
+        val = str(row[ref_col]).strip()
+        if val == "" or val == "-":
+            return f"UNLINKED_{row['CustomerName']}"
+        return val
+
+    sales_raw["Calc_Group_ID"] = sales_raw.apply(create_calc_group_id, axis=1)
+    sales_filtered["Calc_Group_ID"] = sales_filtered.apply(create_calc_group_id, axis=1)
     
     # 1. تحديد قاعدة البيانات المرجعية للسنة كاملة للشركة بدون تأثير الفلاتر العشوائية
     if year != "الكل":
@@ -144,31 +158,32 @@ if ref_col in sales_raw.columns and "Month" in sales_filtered.columns:
     if total_available_months == 0:
         total_available_months = 1
         
-    # 2. حساب عدد الشهور النشطة وعلاقة الولاء بناءً على الـ (ReferenceNumber) مع الشركة ككل
-    global_customer_months = base_data_for_retention.groupby(ref_col).agg(
+    # 2. حساب عدد الشهور النشطة وعلاقة الولاء بناءً على المعرف الجديد الحامي للشرطة
+    global_customer_months = base_data_for_retention.groupby("Calc_Group_ID").agg(
         True_Active_Months=("Month", "nunique"),
-        Customer_Display_Name=("CustomerName", "first") if "CustomerName" in base_data_for_retention.columns else (ref_col, "first")
+        Customer_Display_Name=("CustomerName", "first"),
+        Actual_Ref_Num=(ref_col, "first")
     ).reset_index()
 
     # 3. تحديد الأعمدة المالية وأرقام الفواتير بشكل ديناميكي ذكي
     sales_col = "Amt" if "Amt" in sales_filtered.columns else ("Sales" if "Sales" in sales_filtered.columns else "LineTotal")
     invoice_id_col = "DocNum" if "DocNum" in sales_filtered.columns else ("InvoiceID" if "InvoiceID" in sales_filtered.columns else "Month")
 
-    # 4. حساب المقاييس المالية المفلترة مجمعة أيضاً حسب الـ (ReferenceNumber) لدمج حساب الشركتين للعميل
-    filtered_customer_perf = sales_filtered.groupby(ref_col).agg(
+    # 4. حساب المقاييس المالية المفلترة مجمعة أيضاً حسب (Calc_Group_ID)
+    filtered_customer_perf = sales_filtered.groupby("Calc_Group_ID").agg(
         Total_Sales_Amount=(sales_col, "sum"),
         Total_Invoices_Count=(invoice_id_col, "nunique")
     ).reset_index()
     
-    # 5. الدمج الكامل بين جدول الولاء التراكمي للرقم المرجعي والأداء المالي الحالي
-    customer_summary = pd.merge(filtered_customer_perf, global_customer_months, on=ref_col, how="left")
+    # 5. الدمج الكامل بين جدول الولاء التراكمي وجدول الأداء المالي الحالي
+    customer_summary = pd.merge(filtered_customer_perf, global_customer_months, on="Calc_Group_ID", how="left")
     
     # 6. حساب العمليات الحسابية ونسب الانتظام للكيان الموحد
     customer_summary["الانتظام"] = (customer_summary["True_Active_Months"] / total_available_months * 100).round(0)
     customer_summary["الأشهر"] = customer_summary["True_Active_Months"].astype(str) + f"/{total_available_months}"
     customer_summary["متوسط الفاتورة"] = customer_summary["Total_Sales_Amount"] / customer_summary["Total_Invoices_Count"]
     
-    # 7. دالة التصنيف الملون المعتمد على الـ ReferenceNumber الموحد
+    # 7. دالة التصنيف الملون المعتمد على النشاط الحقيقي للكيان
     def assign_classification(row):
         pct = row["الانتظام"]
         months = row["True_Active_Months"]
@@ -184,12 +199,12 @@ if ref_col in sales_raw.columns and "Month" in sales_filtered.columns:
             
     customer_summary["التصنيف"] = customer_summary.apply(assign_classification, axis=1)
     
-    # 8. الترتيب حسب عدد الشهور النشطة للرقم المرجعي أولاً ثم الأعلى مبيعات
+    # 8. الترتيب حسب عدد الشهور النشطة أولاً ثم الأعلى مبيعات
     customer_summary_sorted = customer_summary.sort_values(by=["True_Active_Months", "Total_Sales_Amount"], ascending=[False, False])
     
     # 9. صياغة الجدول النهائي بالتصميم والترتيب المطلوب تماماً
     final_table = pd.DataFrame({
-        "الرقم المرجعي": customer_summary_sorted[ref_col],
+        "الرقم المرجعي": customer_summary_sorted["Actual_Ref_Num"],
         "العميل": customer_summary_sorted["Customer_Display_Name"],
         "الأشهر": customer_summary_sorted["الأشهر"],
         "الانتظام": customer_summary_sorted["الانتظام"].astype(int).astype(str) + "%",
@@ -216,7 +231,7 @@ if ref_col in sales_raw.columns and "Month" in sales_filtered.columns:
     )
 
 else:
-    st.error(f"تأكد من وجود عمود '{ref_col}' و 'Month' في ملف البيانات لتشغيل ميزة دمج الحسابات الحقيقية.")
+    st.error(f"تأكد من وجود عمود '{ref_col}' و 'Month' في ملف البيانات لتشغيل الميزة.")
 
 st.divider()
 st.caption("ERP AI Analytics | Sales Dashboard V1")
