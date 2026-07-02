@@ -72,6 +72,7 @@ all_months   = sorted(df_all["Month"].unique())
 all_reps     = sorted([r for r in df_all["Salesperson"].unique()
                        if r not in ["-No Sales Employee-", "موظفين"]])
 all_db       = sorted(df_all["DB"].unique())
+all_groups = sorted(df_all["ItemGroup"].dropna().unique().tolist())
 
 # ── Header ────────────────────────────────────────────────────────────────────
 st.markdown("""
@@ -82,7 +83,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ── Filters ───────────────────────────────────────────────────────────────────
-c1, c2, c3, c4, c5 = st.columns([0.8, 1.4, 2.2, 1.2, 0.7])
+c1, c2, c3, c4, c5, c6 = st.columns([0.8, 1.4, 2.2, 1.2, 1.2, 0.7])
 
 with c1:
     st.markdown("<label style='font-size:13px;font-weight:700;color:#444'>السنة</label>", unsafe_allow_html=True)
@@ -106,33 +107,39 @@ with c4:
                              label_visibility="collapsed", key="sel_db")
 
 with c5:
+    st.markdown("<label style='font-size:13px;font-weight:700;color:#444'>العائلة</label>", unsafe_allow_html=True)
+    sel_groups = st.multiselect("", all_groups, default=all_groups,
+                                label_visibility="collapsed", key="sel_groups")
+
+with c6: 
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("🔄 مسح"):
-        for k in ["sel_year","sel_months","sel_reps","sel_db"]:
+        for k in ["sel_year", "sel_months", "sel_reps", "sel_db", "sel_groups"]:
             if k in st.session_state:
                 del st.session_state[k]
         st.rerun()
 
 # ── Apply Filters ─────────────────────────────────────────────────────────────
+# التأكد من أن قيم الفلاتر هي قوائم (Lists) وليس أي نوع آخر
 if not sel_months_num: sel_months_num = all_months
 if not sel_reps:       sel_reps       = all_reps
 if not sel_db:         sel_db         = all_db
+if not sel_groups:     sel_groups     = all_groups
 
-df = df_all[
-    (df_all["Year"]       == sel_year) &
-    (df_all["Month"].isin(sel_months_num)) &
-    (df_all["Salesperson"].isin(sel_reps)) &
-    (df_all["DB"].isin(sel_db))
-].copy()
-
-# Filter note
-st.markdown("""
-<div class="filter-note">
-  ⚠️ <span>ملاحظة:</span> يتم احتساب الإجماليات بناءً على الفلاتر المحددة أعلاه —
-  التقرير يشمل الفواتير والمرتجعات معاً
-</div>
-""", unsafe_allow_html=True)
-
+# الفلترة الآمنة
+try:
+    df = df_all[
+        (df_all["Year"] == sel_year) &
+        (df_all["Month"].isin(sel_months_num)) &
+        (df_all["Salesperson"].isin(sel_reps)) &
+        (df_all["DB"].isin(sel_db)) &
+        (df_all["ItemGroup"].isin(sel_groups))
+    ].copy()
+except Exception as e:
+    st.error(f"حدث خطأ أثناء تطبيق الفلاتر: {e}")
+    # عرض أنواع البيانات للتأكد من المشكلة في حال استمر الخطأ
+    st.write(f"Type of sel_db: {type(sel_db)}")
+    df = df_all.copy()
 # ── KPI Cards ─────────────────────────────────────────────────────────────────
 total_sales    = df["Amt"].sum()
 total_qty      = df["QYT"].sum()
