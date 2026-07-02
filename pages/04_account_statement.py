@@ -2,8 +2,14 @@ import streamlit as st
 import pandas as pd
 import os
 import io
+from utils import display_header
 
-st.set_page_config(layout="wide", page_title="كشف الحساب الموحد")
+# استدعاء الترويسة الثابتة
+display_header()
+
+# ==========================================================
+# إعدادات الصفحة (تم حذف st.set_page_config لأنها في app.py)
+# ==========================================================
 
 @st.cache_data
 def load_data():

@@ -2,8 +2,14 @@ import streamlit as st
 import pandas as pd
 import os
 import io
+from utils import display_header
 
-st.set_page_config(layout="wide", page_title="إدارة المستودعات")
+# استدعاء الترويسة الثابتة
+display_header()
+
+# ==========================================================
+# ملاحظة: تم إزالة st.set_page_config لأنها موجودة في app.py
+# ==========================================================
 
 # تحميل البيانات من ملف inventory.csv الموجود في مجلد data
 @st.cache_data
@@ -55,7 +61,7 @@ if not inv_df.empty:
     wh_summary = filtered_df.groupby('اسم المستودع')['قيمة المخزون'].sum().reset_index()
     st.dataframe(wh_summary, use_container_width=True)
 
-    # 4. تفاصيل الأصناف (تم إضافة الأعمدة الجديدة)
+    # 4. تفاصيل الأصناف
     st.subheader("تفاصيل الأصناف")
     st.dataframe(filtered_df[['الشركة', 'الصنف', 'الوصف', 'اسم المستودع', 'الرصيد', 'قيمة المخزون', 'كلفة الوحدة', 'سعر البيع', 'الربح', 'هامش الربح']], use_container_width=True)
 

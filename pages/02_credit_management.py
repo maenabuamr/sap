@@ -1,5 +1,13 @@
 import streamlit as st
 import pandas as pd
+from utils import display_header  # استيراد دالة الترويسة من ملف utils.py
+
+# استدعاء الترويسة الثابتة (يجب أن تكون في أول الصفحة)
+display_header()
+
+# ==========================================================
+# ملاحظة: تم إزالة st.set_page_config من هنا لأنها موجودة في app.py الرئيسي
+# ==========================================================
 
 from data_loader import (
     load_aging,
@@ -22,16 +30,13 @@ from components.collection_priority import render_collection_priority
 from components.credit_table import render_credit_table
 from components.customer_card import render_customer_card
 
+# باقي كودك يبدأ من هنا
+st.title("💰 Credit Management")
 
 # ==========================================================
-# PAGE CONFIG
+# LOAD & CLEAN DATA
 # ==========================================================
-st.set_page_config(
-    page_title="Credit Management",
-    page_icon="💰",
-    layout="wide",
-)
-
+# ... (بقية الكود الخاص بك كما هو بدون تغيير)
 st.title("💰 Credit Management")
 
 

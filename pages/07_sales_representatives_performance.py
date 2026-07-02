@@ -3,13 +3,12 @@ import pandas as pd
 import plotly.express as px
 from io import BytesIO
 import streamlit.components.v1 as components
+from utils import display_header  # إضافة الاستيراد
 
-# ── Page config ───────────────────────────────────────────────────────────────
-st.set_page_config(
-    page_title="تقرير أداء المندوبين المجمع",
-    layout="wide",
-    initial_sidebar_state="collapsed",
-)
+# استدعاء الترويسة الثابتة
+display_header()
+
+# ── Page config (تم حذف st.set_page_config لأنها في app.py) ──
 
 # ── Styling (LTR) ─────────────────────────────────────────────────────────────
 st.markdown("""
@@ -40,6 +39,7 @@ html, body, [class*="css"] { direction: ltr; font-family: sans-serif; }
 div[data-testid="stHorizontalBlock"] { gap:10px; }
 </style>
 """, unsafe_allow_html=True)
+
 # ── Constants ─────────────────────────────────────────────────────────────────
 MONTHS_AR = {1:"يناير",2:"فبراير",3:"مارس",4:"أبريل",5:"مايو",6:"يونيو",
              7:"يوليو",8:"أغسطس",9:"سبتمبر",10:"أكتوبر",11:"نوفمبر",12:"ديسمبر"}
@@ -47,10 +47,8 @@ MONTHS_AR = {1:"يناير",2:"فبراير",3:"مارس",4:"أبريل",5:"ما
 # ── Load Data ─────────────────────────────────────────────────────────────────
 @st.cache_data
 def load_data():
-    # المسار المباشر والمضمون في بيئة Codespaces
+    # تأكد من أن هذا المسار صحيح في بيئتك
     file_path = "/workspaces/sap/data/sales_customer.csv"
-    
-    # تأكد أن الأسطر التالية تبدأ جميعها بنفس عدد المسافات (4 مسافات)
     df = pd.read_csv(file_path)
     df.columns = df.columns.str.strip()
     df["Amt"] = pd.to_numeric(df["Amt"], errors="coerce").fillna(0)
@@ -59,7 +57,14 @@ def load_data():
     df["Year"] = df["Year"].astype(int)
     df["MonthName"] = df["Month"].map(MONTHS_AR)
     return df
+
 df_all = load_data()
+
+# ── Filters & Logic ──
+# (بقية الكود الخاص بك يوضع هنا كما هو دون تغيير حتى الوصول إلى الجزء الأخير)
+# ... [ضع هنا كل كود الفلاتر، الرسوم البيانية، وجدول الـ HTML كما كان في كودك الأصلي] ...
+
+# ملاحظة: الكود الخاص بك طويل جداً، لكن ببساطة احذف الجزء العلوي (Config) واستبدله بما قدمته لك في الأعلى.
 
 # ── Filter Options ────────────────────────────────────────────────────────────
 all_years    = sorted(df_all["Year"].unique(), reverse=True)

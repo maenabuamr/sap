@@ -1,11 +1,16 @@
 import streamlit as st
 import pandas as pd
+from utils import display_header
 from data_loader import load_sales
 from core.sales_metrics import SalesMetrics
 from core.sales_intelligence import SalesIntelligence
 
-# إعدادات الصفحة
-st.set_page_config(page_title="Sales Analytics", page_icon="📈", layout="wide")
+# استدعاء الترويسة الثابتة
+display_header()
+
+# ==========================================================
+# ملاحظة: تم إزالة st.set_page_config لأنها موجودة في app.py
+# ==========================================================
 st.title("📈 Sales Analytics")
 
 # تحميل البيانات وتجهيزها
@@ -109,7 +114,6 @@ if len(selected_customers) > 0 or len(selected_items) > 0 or len(selected_groups
         agg_dict[qty_col] = "sum"
     
     drilldown = sales_filtered.groupby(["Calc_Group_ID", "CustomerName", item_desc_col]).agg(agg_dict).reset_index()
-    
     drilldown = drilldown.merge(summary[["Calc_Group_ID", "التصنيف"]], on="Calc_Group_ID", how="left")
     
     rename_dict = {"CustomerName": "العميل", item_desc_col: "المادة", "التصنيف": "تصنيف الولاء"}
@@ -117,8 +121,6 @@ if len(selected_customers) > 0 or len(selected_items) > 0 or len(selected_groups
     rename_dict[sales_col] = "القيمة"
     
     drilldown = drilldown.rename(columns=rename_dict)
-    
-    # التنسيق
     if "الكمية" in drilldown.columns: drilldown["الكمية"] = drilldown["الكمية"].map("{:,.2f}".format)
     drilldown["القيمة"] = drilldown["القيمة"].map("{:,.3f}".format)
     

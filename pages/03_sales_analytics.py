@@ -1,17 +1,16 @@
 import streamlit as st
 import pandas as pd
+from utils import display_header  # استيراد الترويسة المشتركة
 from data_loader import load_sales
 from core.sales_metrics import SalesMetrics
 from components.sales_charts import render_sales_charts
 
+# 1. استدعاء الترويسة الثابتة (مكان الـ set_page_config المحذوف)
+display_header()
+
 # ==========================================================
-# إعدادات الصفحة
+# إعدادات الصفحة (تم حذف set_page_config لأنها موجودة في app.py)
 # ==========================================================
-st.set_page_config(
-    page_title="Sales Analytics",
-    page_icon="📈",
-    layout="wide"
-)
 
 st.title("📈 Sales Analytics")
 
@@ -86,19 +85,12 @@ metrics = SalesMetrics(sales_filtered)
 c1, c2, c3, c4, c5 = st.columns(5)
 
 with c1:
-    st.metric(
-        "💰 Total Sales",
-        f"{metrics.total_sales():,.3f}"
-    )
+    st.metric("💰 Total Sales", f"{metrics.total_sales():,.3f}")
 
 with c2:
-    st.metric(
-        "📦 Qty",
-        f"{metrics.total_qty():,.2f}"
-    )
+    st.metric("📦 Qty", f"{metrics.total_qty():,.2f}")
 
 with c3:
-    # معالجة قراءة الفواتير سواء كانت رقماً أو قائمة حركات
     invoices_count = 0
     if hasattr(metrics, 'invoices'):
         try:
@@ -108,22 +100,17 @@ with c3:
     st.metric("📄 Invoices", f"{invoices_count:,}")
 
 with c4:
-    # التعديل الجوهري: حساب عدد الكيانات الحقيقية بدقة بعد الدمج وعزل الشرطة (-)
     true_customers_count = sales_filtered["Calc_Group_ID"].nunique()
     st.metric("👥 Customers", f"{true_customers_count:,}")
 
 with c5:
-    st.metric(
-        "🧾 Avg Invoice",
-        f"{metrics.avg_invoice():,.3f}"
-    )
+    st.metric("🧾 Avg Invoice", f"{metrics.avg_invoice():,.3f}")
 
 st.divider()
 
 # ==========================================================
-# الرسوم البيانية والجداول (Charts & Dataframes)
+# الرسوم البيانية والجداول
 # ==========================================================
-# عرض الرسوم البيانية لتتأثر بالفلاتر الجديدة تلقائياً
 render_sales_charts(metrics)
 
 st.divider()
@@ -132,16 +119,8 @@ left, right = st.columns(2)
 
 with left:
     st.subheader("🏆 Top Customers")
-    st.dataframe(
-        metrics.top_customers(),
-        use_container_width=True,
-        hide_index=True
-    )
+    st.dataframe(metrics.top_customers(), use_container_width=True, hide_index=True)
 
 with right:
     st.subheader("📦 Top Items")
-    st.dataframe(
-        metrics.top_items(),
-        use_container_width=True,
-        hide_index=True
-    )
+    st.dataframe(metrics.top_items(), use_container_width=True, hide_index=True)
