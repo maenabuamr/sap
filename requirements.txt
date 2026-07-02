@@ -4,3 +4,4 @@ xlsxwriter
 reportlab
 streamlit-aggrid
 plotly
+openpyxl
