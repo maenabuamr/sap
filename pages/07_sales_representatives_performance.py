@@ -45,11 +45,19 @@ MONTHS_AR = {1:"يناير",2:"فبراير",3:"مارس",4:"أبريل",5:"ما
              7:"يوليو",8:"أغسطس",9:"سبتمبر",10:"أكتوبر",11:"نوفمبر",12:"ديسمبر"}
 
 # ── Load Data ─────────────────────────────────────────────────────────────────
+import os
+
 @st.cache_data
 def load_data():
-    # تأكد من أن هذا المسار صحيح في بيئتك
-    file_path = "/workspaces/sap/data/sales_customer.csv"
+    # البحث عن الملف في المجلد 'data' الموجود في المجلد الرئيسي للمشروع
+    file_path = os.path.join("data", "sales_customer.csv")
+    
+    if not os.path.exists(file_path):
+        st.error(f"الملف غير موجود في المسار: {os.path.abspath(file_path)}")
+        return pd.DataFrame() # إرجاع DataFrame فارغ لتجنب انهيار التطبيق
+        
     df = pd.read_csv(file_path)
+    # ... باقي الكود
     df.columns = df.columns.str.strip()
     df["Amt"] = pd.to_numeric(df["Amt"], errors="coerce").fillna(0)
     df["QYT"] = pd.to_numeric(df["QYT"], errors="coerce").fillna(0)
