@@ -11,7 +11,6 @@ if st.session_state.user_info is None:
     st.title("🔐 تسجيل الدخول")
     user = st.text_input("اسم المستخدم")
     pw = st.text_input("كلمة السر", type="password")
-    
     if st.button("دخول"):
         if os.path.exists("data/users.json"):
             with open("data/users.json", "r", encoding='utf-8') as f:

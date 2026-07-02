@@ -14,6 +14,7 @@ PAGE_CONFIG = {
     ],
     "المخزون": [
         ("05_inventory_management.py", "إدارة المخزون", "📦"),
+        ("06_inventory_reports.py", "تقارير حركات المخزون", "📈")
     ]
 }
 
