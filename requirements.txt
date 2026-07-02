@@ -3,3 +3,4 @@ pandas
 xlsxwriter
 reportlab
 streamlit-aggrid
+plotly
