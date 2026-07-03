@@ -1,15 +1,5 @@
-{
-    "admin": {
-        "password": "123",
-        "role": "admin"
-    },
-    "nader": {
-        "password": "123",
-        "role": "user",
-        "allowed_pages": [
-            "02_credit_management.py",
-            "03_sales_analytics.py",
-            "04_account_statement.py"
-        ]
-    }
-}
+python3 -c "
+from auth import verify_credentials
+ok, role = verify_credentials('admin', '123')
+print('Result:', '✅ OK' if ok else '❌ FAIL', 'Role:', role)
+"

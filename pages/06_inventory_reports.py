@@ -7,7 +7,7 @@ st.set_page_config(layout="wide")
 st.title("📈 تقارير حركة ودوران المواد")
 
 # المسار المحدث للملف
-FILE_PATH = "data/Itemes_Transfers.csv"
+FILE_PATH = "data/Items_Transfers.csv"
 
 if not os.path.exists(FILE_PATH):
     st.error(f"الملف غير موجود في المسار: {FILE_PATH}. يرجى التأكد من وجوده داخل مجلد data.")
