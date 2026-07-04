@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from utils import display_header
-from data_loader import load_sales
+from data_loader import load_sales, load_aging
 from core.sales_metrics import SalesMetrics
 from core.sales_intelligence import SalesIntelligence
 
@@ -151,4 +151,172 @@ final_table = pd.DataFrame({
 })
 st.dataframe(final_table, use_container_width=True, hide_index=True)
 
-st.caption("ERP AI Analytics | Sales Dashboard V1")
+# ==========================================================
+# 💳 ملخص التزام العملاء بالدفع
+# ==========================================================
+st.divider()
+st.subheader("💳 ملخص التزام العملاء بالدفع")
+st.caption("تصنيف العملاء حسب التزامهم بالسداد — مربوط بـ ReferenceNumber الموحد")
+
+@st.cache_data
+def get_payment_compliance():
+    try:
+        from data_loader import load_aging
+    except ImportError:
+        import sys
+        if '.' not in sys.path:
+            sys.path.insert(0, '.')
+        from data_loader import load_aging
+    
+    try:
+        from engine.mapper import map_aging_columns
+        from engine.credit_risk import classify_risk
+    except ImportError:
+        import sys
+        if '.' not in sys.path:
+            sys.path.insert(0, '.')
+        from engine.mapper import map_aging_columns
+        from engine.credit_risk import classify_risk
+    
+    aging = load_aging()
+    
+    name_col = next((c for c in aging.columns if "اسم العميل" in str(c) or "CustomerName" in str(c) or "CardName" in str(c)), None)
+    
+    if name_col:
+        aging[name_col] = aging[name_col].fillna("غير معروف")
+    
+    # ✅ ReferenceNumber هو الرقم الموحد بين الشركتين (per user instruction)
+    ref_col = None
+    for c in aging.columns:
+        cn = str(c).strip()
+        if cn == "Reference Number" or cn == "ReferenceNumber" or "ReferenceNumber" in cn:
+            ref_col = c
+            break
+    
+    if ref_col:
+        aging["RefCode"] = aging[ref_col].astype(str).str.strip().fillna("-")
+        # UNLINKED fallback للعملاء بدون ReferenceNumber
+        if name_col and name_col in aging.columns:
+            mask = aging["RefCode"].isin(["", "-", "nan", "None"])
+            if mask.any():
+                aging.loc[mask, "RefCode"] = "UNLINKED_" + aging.loc[mask, name_col].astype(str)
+    elif name_col:
+        aging["RefCode"] = aging[name_col]
+    else:
+        aging["RefCode"] = aging.index.astype(str)
+    
+    aging = map_aging_columns(aging)
+    aging = classify_risk(aging)
+    return aging
+
+aging_with_risk = get_payment_compliance()
+
+with st.expander("🔧 التشخيص"):
+    st.write(f"عدد الصفوف: {len(aging_with_risk)}")
+    if "RefCode" in aging_with_risk.columns:
+        n_unique = aging_with_risk["RefCode"].nunique()
+        st.write(f"عدد العملاء (RefCode): {n_unique}")
+        st.write(f"عينة RefCode من aging: {aging_with_risk['RefCode'].head(5).tolist()}")
+        unlinked = aging_with_risk[aging_with_risk['RefCode'].str.startswith('UNLINKED_', na=False)]
+        st.write(f"UNLINKED (بدون ReferenceNumber): {len(unlinked)} صف")
+    if "Risk" in aging_with_risk.columns:
+        st.write(f"توزيع المخاطر:\n{aging_with_risk['Risk'].value_counts().to_string()}")
+    if "summary" in dir() and isinstance(summary, pd.DataFrame):
+        st.write(f"\\nSummary columns: {list(summary.columns)}")
+        if "Calc_Group_ID" in summary.columns:
+            st.write(f"Summary Calc_Group_ID samples: {summary['Calc_Group_ID'].astype(str).head(5).tolist()}")
+
+if "RefCode" in aging_with_risk.columns and "Risk" in aging_with_risk.columns:
+    def aggregate_worst(grp):
+        worst_idx = grp["Priority"].idxmin() if "Priority" in grp.columns else 0
+        return pd.Series({"Risk": grp.loc[worst_idx, "Risk"]})
+    
+    # ✅ تجميع حسب RefCode (= ReferenceNumber الموحد)
+    customer_risk = aging_with_risk.groupby("RefCode").apply(aggregate_worst).reset_index()
+    
+    # اسم العميل للعرض
+    if "CustomerName" in aging_with_risk.columns:
+        first_names = aging_with_risk.groupby("RefCode")["CustomerName"].first().reset_index()
+        customer_risk = customer_risk.merge(first_names, on="RefCode", how="left")
+    
+    risk_label_map = {
+        "🟢 منخفض": "ملتزم 🟢",
+        "🟡 متوسط": "متوسط 🟡",
+        "🔴 مرتفع": "متعثر 🔴",
+        "⚪ ضمن فترة السداد": "ضمن السداد ⚪",
+    }
+    customer_risk["تصنيف الالتزام"] = customer_risk["Risk"].map(risk_label_map).fillna(customer_risk["Risk"])
+    
+    cp1, cp2, cp3, cp4 = st.columns(4)
+    risk_counts = customer_risk["تصنيف الالتزام"].value_counts()
+    cp1.metric("ملتزم 🟢", risk_counts.get("ملتزم 🟢", 0))
+    cp2.metric("متوسط 🟡", risk_counts.get("متوسط 🟡", 0))
+    cp3.metric("ضمن السداد ⚪", risk_counts.get("ضمن السداد ⚪", 0))
+    cp4.metric("متعثر 🔴", risk_counts.get("متعثر 🔴", 0))
+    
+    st.divider()
+    st.subheader("🔗 التصنيفين معاً: الولاء + الالتزام")
+    
+    if "summary" in dir() and isinstance(summary, pd.DataFrame):
+        # ✅ الربط الأساسي: Calc_Group_ID ↔ RefCode (= ReferenceNumber)
+        if "Calc_Group_ID" in summary.columns:
+            summary["_key"] = summary["Calc_Group_ID"].astype(str).str.strip()
+            customer_risk["_key"] = customer_risk["RefCode"].astype(str).str.strip()
+            shared = set(summary["_key"].dropna()) & set(customer_risk["_key"].dropna())
+            
+            if shared:
+                combined = summary.merge(
+                    customer_risk[["_key", "تصنيف الالتزام"]],
+                    on="_key",
+                    how="left"
+                )
+                combined.drop(columns=["_key"], inplace=True, errors="ignore")
+                st.caption(f"✅ Link by ReferenceNumber: {len(shared)} matches")
+                
+                # Fallback: للـ UNLINKED_ entries، نربط بالاسم
+                unlinked_keys = customer_risk[customer_risk["RefCode"].str.startswith("UNLINKED_", na=False)]
+                if not unlinked_keys.empty and "CustomerName" in unlinked_keys.columns:
+                    name_col_summary = "Name" if "Name" in summary.columns else None
+                    if name_col_summary:
+                        # Normalize names for fallback
+                        def normalize_arabic(s):
+                            if pd.isna(s): return ""
+                            s = str(s).strip().lower()
+                            s = s.replace('أ', 'ا').replace('إ', 'ا').replace('آ', 'ا')
+                            s = s.replace('ة', 'ه').replace('ى', 'ي')
+                            return ' '.join(s.split())
+                        
+                        unlinked_keys = unlinked_keys.copy()
+                        unlinked_keys["_norm"] = unlinked_keys["CustomerName"].apply(normalize_arabic)
+                        combined["_norm"] = combined[name_col_summary].apply(normalize_arabic)
+                        
+                        name_map = dict(zip(unlinked_keys["_norm"], unlinked_keys["تصنيف الالتزام"]))
+                        combined["_name_match"] = combined["_norm"].map(name_map)
+                        # Fill NaN values for payment classification
+                        combined["تصنيف الالتزام"] = combined["تصنيف الالتزام"].fillna(combined["_name_match"])
+                        combined.drop(columns=["_norm", "_name_match"], inplace=True, errors="ignore")
+                
+                combined["تصنيف الالتزام"] = combined["تصنيف الالتزام"].fillna("—")
+                
+                if "Name" in combined.columns:
+                    combined_display = pd.DataFrame({
+                        "العميل": combined["Name"],
+                        "الأشهر النشطة": combined["True_Active"].astype(str) + f"/{total_months}" if "True_Active" in combined.columns else "—",
+                        "الانتظام %": combined["الانتظام"].astype(str) + "%" if "الانتظام" in combined.columns else "—",
+                        "تصنيف الولاء": combined["التصنيف"] if "التصنيف" in combined.columns else "—",
+                        "تصنيف الالتزام": combined["تصنيف الالتزام"],
+                    })
+                    st.dataframe(combined_display, use_container_width=True, hide_index=True)
+                else:
+                    st.dataframe(combined.head(20), use_container_width=True, hide_index=True)
+            else:
+                st.warning("⚠️ ما في ReferenceNumber مشترك")
+                with st.expander("🔍 قارن المفاتيح"):
+                    st.write("Summary Calc_Group_ID samples:", sorted(set(summary["Calc_Group_ID"].astype(str)))[:10])
+                    st.write("Aging RefCode samples:", sorted(set(customer_risk["RefCode"]))[:10])
+        else:
+            st.warning("⚠️ ما في Calc_Group_ID في summary")
+    else:
+        st.warning("ما في summary dataframe")
+else:
+    st.warning("⚠️ ما في RefCode أو Risk")
