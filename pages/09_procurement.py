@@ -98,8 +98,13 @@ m4.metric("📋 عدد الأصناف", df['ItemCode'].nunique())
 
 st.divider()
 
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-    "🏭 الموردين", "📦 الأصناف", "📅 الفترة الزمنية", "📊 التركيز", "📋 تقرير المواد", "🔍 تفاصيل الأصناف",
+# ─── 5 تبويبات مرقّمة 1-5 من البداية ────────────────────────────────
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "🏭 الموردين",
+    "📅 الفترة الزمنية",
+    "📊 التركيز",
+    "📋 تقرير المواد",
+    "🔍 تفاصيل الأصناف",
 ])
 
 with tab1:
@@ -125,47 +130,6 @@ with tab1:
     )
 
 with tab2:
-    st.subheader("📋 كل الأصناف")
-    st.caption("جدول بكل صنف: الاسم، إجمالي الكمية، متوسط السعر، إجمالي السعر")
-    all_items = df.groupby(['ItemCode', 'ItemDescription', 'ItemGroup']).agg(
-        total_qty=('QYT', 'sum'),
-        total_amount=('Amt', 'sum'),
-    ).reset_index()
-    all_items['avg_price'] = all_items.apply(
-        lambda r: r['total_amount'] / r['total_qty'] if r['total_qty'] > 0 else 0,
-        axis=1,
-    )
-    sort_opts_t2 = {
-        'total_amount': 'إجمالي السعر',
-        'total_qty': 'إجمالي الكمية',
-        'avg_price': 'متوسط السعر',
-    }
-    sort_by_t2 = st.selectbox(
-        "ترتيب:",
-        options=list(sort_opts_t2.keys()),
-        format_func=lambda x: sort_opts_t2[x],
-    )
-    st.caption(f"إجمالي {len(all_items)} صنف")
-    st.dataframe(
-        all_items.sort_values(sort_by_t2, ascending=False),
-        use_container_width=True,
-        column_config={
-            'total_qty': st.column_config.NumberColumn('إجمالي كمية الشراء', format="%.2f"),
-            'avg_price': st.column_config.NumberColumn('متوسط السعر', format="%.4f"),
-            'total_amount': st.column_config.NumberColumn('إجمالي السعر', format="%.2f"),
-        },
-        column_order=['ItemCode', 'ItemDescription', 'ItemGroup', 'total_qty', 'avg_price', 'total_amount'],
-        hide_index=True,
-    )
-    st.download_button(
-        "📥 تنزيل كل الأصناف كـ CSV",
-        data=all_items.to_csv(index=False).encode('utf-8-sig'),
-        file_name="all_items.csv",
-        mime="text/csv",
-        key='dl_all_items',
-    )
-
-with tab3:
     st.subheader("تحليل الفترة الزمنية")
     monthly = df.groupby(['Year', 'Month']).agg(
         total_amount=('Amt', 'sum'),
@@ -194,7 +158,7 @@ with tab3:
         use_container_width=True,
     )
 
-with tab4:
+with tab3:
     st.subheader("تحليل التركيز (Pareto)")
     st.caption("قاعدة 80/20")
     grand_total = df['Amt'].sum()
@@ -224,7 +188,7 @@ with tab4:
     st.divider()
     st.dataframe(by_vendor_p.head(30), use_container_width=True)
 
-with tab5:
+with tab4:
     st.subheader("📋 تقرير شامل بالمواد (بالتفاصيل)")
     st.caption("كل صنف مع المورد الأعلى والأدنى سعر")
     detailed = df.groupby(['ItemCode', 'ItemDescription', 'ItemGroup']).agg(
@@ -256,7 +220,7 @@ with tab5:
     with col_search:
         search_term = st.text_input("🔍 ابحث:", "")
     with col_sort:
-        sort_opts_t5 = {
+        sort_opts_t4 = {
             'total_amount': 'إجمالي المبلغ',
             'avg_price': 'متوسط السعر',
             'min_price': 'أدنى سعر',
@@ -264,8 +228,8 @@ with tab5:
             'price_spread_pct': 'فرق السعر %',
             'vendor_count': 'عدد الموردين',
         }
-        sort_col_t5 = st.selectbox("ترتيب:", list(sort_opts_t5.keys()),
-                                   format_func=lambda x: sort_opts_t5[x])
+        sort_col_t4 = st.selectbox("ترتيب:", list(sort_opts_t4.keys()),
+                                   format_func=lambda x: sort_opts_t4[x])
     display = detailed.copy()
     if search_term:
         mask_search = (
@@ -278,7 +242,7 @@ with tab5:
         display = display[mask_search]
     st.caption(f"عدد الأصناف المعروضة: {len(display)} من {len(detailed)}")
     st.dataframe(
-        display.sort_values(sort_col_t5, ascending=False),
+        display.sort_values(sort_col_t4, ascending=False),
         use_container_width=True,
         column_config={
             'avg_price': st.column_config.NumberColumn('متوسط السعر', format="%.4f"),
@@ -305,9 +269,7 @@ with tab5:
         mime="text/csv",
     )
 
-
-# ── Tab 6: تفاصيل مشتريات كل صنف ──────────────────────────────
-with tab6:
+with tab5:
     st.subheader("🔍 تاريخ مشتريات كل صنف")
     st.caption("اضغط على أي صنف لتوسيع تفاصيل مشترياته")
 
