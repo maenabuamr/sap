@@ -21,6 +21,7 @@ PAGE_CONFIG = {
     "الإنتاج": [
         ("10_production.py", "إدارة الإنتاج", "🏭"),
         ("11_financial_reports.py", "التقارير المالية", "💰"),
+        ("12_trial_balance.py", " ميزان المراجعة", "💰"),
     ],
 }
 
