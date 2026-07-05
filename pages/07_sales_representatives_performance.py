@@ -66,6 +66,67 @@ def load_data():
     df["MonthName"] = df["Month"].map(MONTHS_AR)
     return df
 
+@st.cache_data
+def load_targets_v2():
+    target_paths = ["data/salesperson_targets.csv", "salesperson_targets.csv"]
+    target_path = None
+    for p in target_paths:
+        if os.path.exists(p):
+            target_path = p
+            break
+    if not target_path:
+        return None, "Target file not found"
+    df = None
+    for enc in ["utf-8-sig", "cp1256", "utf-8", "latin1"]:
+        try:
+            df = pd.read_csv(target_path, encoding=enc, header=None)
+            if df.shape[1] >= 50:
+                break
+        except:
+            continue
+    if df is None or df.shape[1] < 50:
+        return None, "Failed to load"
+    header_row = df.iloc[0].fillna("").astype(str)
+    subheader_row = df.iloc[2].fillna("").astype(str)
+    target_cols = [idx for idx, val in subheader_row.items() if "Target qty" in str(val)]
+    rep_data = {}
+    for tc in target_cols:
+        rep_name = None
+        for offset in range(1, 6):
+            for direction in [1, -1]:
+                pos = tc + offset * direction
+                if 0 <= pos < len(header_row):
+                    cand = str(header_row.iloc[pos]).strip()
+                    if (cand and cand != "nan" and not cand.replace(".", "").replace("-", "").isdigit()
+                            and cand not in ["Total", "Description", ""]):
+                        rep_name = cand
+                        break
+            if rep_name:
+                break
+        if not rep_name or rep_name in rep_data:
+            continue
+        rep_data[rep_name] = tc
+    data_rows = df.iloc[3:].copy()
+    rep_totals = {}
+    per_item_targets = {}
+    for _, row in data_rows.iterrows():
+        item_code = str(row.iloc[0]).strip()
+        if not item_code or item_code == "nan":
+            continue
+        per_item_targets[item_code] = {}
+        for rep, tc in rep_data.items():
+            try:
+                val = row.iloc[tc]
+                tgt = float(pd.to_numeric(pd.Series([val]), errors="coerce").iloc[0] or 0)
+                per_item_targets[item_code][rep] = tgt
+            except:
+                per_item_targets[item_code][rep] = 0.0
+            rep_totals[rep] = rep_totals.get(rep, 0) + per_item_targets[item_code][rep]
+    return {"totals": rep_totals, "per_item": per_item_targets}, None
+
+
+
+
 df_all = load_data()
 
 # ── Filters & Logic ──
@@ -414,6 +475,41 @@ if not fam_df.empty:
     # estimate height: ~28px per family row + some buffer
     est_height = max(500, len(fam_df) * 30 + 120)
     components.html(html_table, height=est_height, scrolling=True)
+
+target_data_v2, target_err_v2 = load_targets_v2()
+if target_data_v2 and not fam_df.empty:
+    rep_totals = target_data_v2.get("totals", {})
+    actual_july = df_all[df_all["Month"] == 7].copy() if "Month" in df_all.columns else df_all.copy()
+    actual_by_rep = actual_july.groupby("Salesperson").agg(
+        Actual_QTY=("QYT", "sum"),
+        Actual_AMT=("Amt", "sum")
+    ).reset_index()
+    summary_rows = []
+    for rep in rep_totals:
+        target = float(rep_totals[rep]) if rep_totals[rep] else 0.0
+        rep_actual = actual_by_rep[actual_by_rep["Salesperson"] == rep]
+        if len(rep_actual) > 0:
+            actual_qty = float(rep_actual["Actual_QTY"].iloc[0])
+            actual_amt = float(rep_actual["Actual_AMT"].iloc[0])
+        else:
+            actual_qty = 0
+            actual_amt = 0
+        pct = (actual_qty / target * 100) if target > 0 else 0
+        summary_rows.append({
+            "المندوب": rep,
+            "Target": f"{target:,.0f}",
+            "Actual QTY": f"{actual_qty:,.0f}",
+            "Actual AMT": f"{actual_amt:,.2f}",
+            "Achievement %": f"{pct:.1f}%",
+        })
+    summary_df = pd.DataFrame(summary_rows).sort_values("Achievement %", ascending=False)
+    st.markdown("### Target vs Achievement Summary")
+    st.dataframe(summary_df, use_container_width=True, hide_index=True)
+elif target_err_v2:
+    st.warning(f"Target error: {target_err_v2}")
+
+
+
 
     st.markdown(f"""
     <div style='font-size:12px;color:#888;margin-top:4px;text-align:center;'>
