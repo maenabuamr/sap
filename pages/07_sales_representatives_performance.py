@@ -49,15 +49,11 @@ import os
 
 @st.cache_data
 def load_data():
-    # البحث عن الملف في المجلد 'data' الموجود في المجلد الرئيسي للمشروع
     file_path = os.path.join("data", "sales_customer.csv")
-    
     if not os.path.exists(file_path):
         st.error(f"الملف غير موجود في المسار: {os.path.abspath(file_path)}")
-        return pd.DataFrame() # إرجاع DataFrame فارغ لتجنب انهيار التطبيق
-        
+        return pd.DataFrame()
     df = pd.read_csv(file_path)
-    # ... باقي الكود
     df.columns = df.columns.str.strip()
     df["Amt"] = pd.to_numeric(df["Amt"], errors="coerce").fillna(0)
     df["QYT"] = pd.to_numeric(df["QYT"], errors="coerce").fillna(0)
@@ -66,74 +62,184 @@ def load_data():
     df["MonthName"] = df["Month"].map(MONTHS_AR)
     return df
 
+def _norm_name(s):
+    """تطبيع الاسم: إزالة المسافات الزائدة والتشكيل."""
+    import re
+    s = str(s).strip()
+    s = re.sub(r'[\u064B-\u065F]', '', s)   # إزالة التشكيل
+    s = re.sub(r'\s+', ' ', s)              # مسافة واحدة
+    return s.lower()
+
+def _best_name_match(target_name, sales_names):
+    """أفضل مطابقة بين اسم من ملف التارجت وقائمة أسماء المبيعات."""
+    tn = _norm_name(target_name)
+    # مطابقة تامة
+    for s in sales_names:
+        if _norm_name(s) == tn:
+            return s
+    # مطابقة جزئية: الاسم الأول والثاني
+    tn_words = set(tn.split())
+    best, best_score = None, 0
+    for s in sales_names:
+        sn_words = set(_norm_name(s).split())
+        score = len(tn_words & sn_words)
+        if score > best_score:
+            best_score, best = score, s
+    return best if best_score >= 1 else None
+
 @st.cache_data
 def load_targets_v2():
+    """
+    قراءة مباشرة لملف التارجت:
+    - البحث عن صف 'Target qty'
+    - الحصول على أسماء المندوبين من الصف الأول (row 0) عند العمود tc-1
+    - تخطي أول عمود Target qty (الإجمالي عند col 3)
+    - قراءة قيمة Target qty لكل مندوب ولكل صنف مباشرة من العمود tc
+    """
     target_paths = ["data/salesperson_targets.csv", "salesperson_targets.csv"]
-    target_path = None
+    target_path  = None
     for p in target_paths:
         if os.path.exists(p):
             target_path = p
             break
     if not target_path:
         return None, "Target file not found"
+
+    # جرّب كل المحددات والترميزات واحتفظ بأكثرها أعمدة
     df = None
     for enc in ["utf-8-sig", "cp1256", "utf-8", "latin1"]:
-        try:
-            df = pd.read_csv(target_path, encoding=enc, header=None)
-            if df.shape[1] >= 50:
-                break
-        except:
-            continue
-    if df is None or df.shape[1] < 50:
-        return None, "Failed to load"
-    header_row = df.iloc[0].fillna("").astype(str)
-    subheader_row = df.iloc[2].fillna("").astype(str)
-    target_cols = [idx for idx, val in subheader_row.items() if "Target qty" in str(val)]
-    rep_data = {}
-    for tc in target_cols:
-        rep_name = None
-        for offset in range(1, 6):
-            for direction in [1, -1]:
-                pos = tc + offset * direction
-                if 0 <= pos < len(header_row):
-                    cand = str(header_row.iloc[pos]).strip()
-                    if (cand and cand != "nan" and not cand.replace(".", "").replace("-", "").isdigit()
-                            and cand not in ["Total", "Description", ""]):
-                        rep_name = cand
-                        break
-            if rep_name:
-                break
-        if not rep_name or rep_name in rep_data:
-            continue
-        rep_data[rep_name] = tc
-    data_rows = df.iloc[3:].copy()
-    rep_totals = {}
-    per_item_targets = {}
-    for _, row in data_rows.iterrows():
-        item_code = str(row.iloc[0]).strip()
-        if not item_code or item_code == "nan":
-            continue
-        per_item_targets[item_code] = {}
-        for rep, tc in rep_data.items():
+        for sep in ["\t", ",", ";"]:
             try:
-                val = row.iloc[tc]
-                tgt = float(pd.to_numeric(pd.Series([val]), errors="coerce").iloc[0] or 0)
-                per_item_targets[item_code][rep] = tgt
-            except:
-                per_item_targets[item_code][rep] = 0.0
-            rep_totals[rep] = rep_totals.get(rep, 0) + per_item_targets[item_code][rep]
-    return {"totals": rep_totals, "per_item": per_item_targets}, None
+                tmp = pd.read_csv(target_path, encoding=enc, sep=sep,
+                                  header=None, dtype=str)
+                if df is None or tmp.shape[1] > df.shape[1]:
+                    df = tmp
+            except Exception:
+                continue
+    if df is None or df.shape[1] < 4:
+        return None, f"Failed to load target file (best shape: {df.shape if df is not None else 'None'})"
 
+    # ── 1. إيجاد صف "Target qty" ─────────────────────────────────────────────
+    sub_row_idx = None
+    for ri in range(min(10, len(df))):
+        if any("target qty" in str(v).lower()
+               for v in df.iloc[ri].fillna("").astype(str)):
+            sub_row_idx = ri
+            break
+    if sub_row_idx is None:
+        return None, "Could not find 'Target qty' row in target file"
 
+    subheader = df.iloc[sub_row_idx].fillna("").astype(str)
+
+    # ── 2. مواضع كل عمود "Target qty" ────────────────────────────────────────
+    all_tq_cols = [i for i, v in enumerate(subheader) if "target qty" in v.lower()]
+    if not all_tq_cols:
+        return None, "No 'Target qty' columns found"
+
+    # أول عمود هو الإجمالي (col 3) → نتخطاه، نأخذ الباقي
+    rep_tq_cols = all_tq_cols[1:]
+
+    # ── 3. أسماء المندوبين من الصف الأول عند العمود tc-1 ─────────────────────
+    row0 = df.iloc[0].fillna("").astype(str)
+
+    rep_col_map = {}  # {rep_name: target_qty_col_index}
+    seen_names  = set()
+    for tc in rep_tq_cols:
+        name = ""
+        # أسماء المندوبين في الصف الأول عند tc-1 (الخانة الفارغة في subheader)
+        for pos in [tc - 1, tc, tc - 2, tc + 1]:
+            if 0 <= pos < len(row0):
+                cand = row0.iloc[pos].strip()
+                if (cand and cand.lower() not in ("nan", "")
+                        and not cand.replace(".", "").replace("-", "").replace(",", "").isdigit()):
+                    name = cand
+                    break
+        if name and name not in seen_names:
+            rep_col_map[name] = tc
+            seen_names.add(name)
+
+    if not rep_col_map:
+        return None, "No rep names found in row 0"
+
+    # ── 4. قراءة بيانات كل صنف ────────────────────────────────────────────────
+    per_item_targets = {}
+    rep_totals       = {r: 0.0 for r in rep_col_map}
+
+    for _, row in df.iloc[sub_row_idx + 1:].iterrows():
+        item_code = str(row.iloc[0]).strip()
+        if not item_code or item_code.lower() == "nan":
+            continue
+        item_d = {}
+        for rep, tc in rep_col_map.items():
+            try:
+                raw = row.iloc[tc] if tc < len(row) else ""
+                val = pd.to_numeric(str(raw).replace(",", ""), errors="coerce")
+                tgt = float(val) if pd.notna(val) else 0.0
+            except Exception:
+                tgt = 0.0
+            item_d[rep] = tgt
+            rep_totals[rep] += tgt
+        per_item_targets[item_code] = item_d
+
+    return {
+        "totals":            rep_totals,
+        "per_item":          per_item_targets,
+        "rep_names_in_file": list(rep_col_map.keys()),
+        "_raw_row0":         list(row0),          # للتشخيص فقط
+        "_sub_row_idx":      sub_row_idx,
+        "_rep_tq_cols":      rep_tq_cols,
+    }, None
 
 
 df_all = load_data()
 
-# ── Filters & Logic ──
-# (بقية الكود الخاص بك يوضع هنا كما هو دون تغيير حتى الوصول إلى الجزء الأخير)
-# ... [ضع هنا كل كود الفلاتر، الرسوم البيانية، وجدول الـ HTML كما كان في كودك الأصلي] ...
+# ── تحميل بيانات التارجت مبكراً ──────────────────────────────────────────────
+target_data_v2, target_err_v2 = load_targets_v2()
 
-# ملاحظة: الكود الخاص بك طويل جداً، لكن ببساطة احذف الجزء العلوي (Config) واستبدله بما قدمته لك في الأعلى.
+# ── قسم التشخيص (افتحه لمعرفة ما يُقرأ من ملف التارجت) ──────────────────────
+with st.expander("🔍 تشخيص ملف التارجت"):
+    if target_err_v2:
+        st.error(f"خطأ: {target_err_v2}")
+    elif target_data_v2:
+        file_names  = target_data_v2.get("rep_names_in_file", [])
+        totals      = target_data_v2.get("totals", {})
+        per_item    = target_data_v2.get("per_item", {})
+        raw_row0    = target_data_v2.get("_raw_row0", [])
+        sub_ri      = target_data_v2.get("_sub_row_idx", "?")
+        rep_tq_cols = target_data_v2.get("_rep_tq_cols", [])
+        sales_reps  = sorted([r for r in df_all["Salesperson"].unique()
+                              if r not in ["-No Sales Employee-", "موظفين"]])
+
+        st.markdown(f"**صف 'Target qty' محدد عند الصف رقم:** `{sub_ri}`")
+        st.markdown(f"**أعمدة Target qty للمندوبين (بعد تخطي الإجمالي):** `{rep_tq_cols}`")
+
+        st.markdown("**الصف الأول من الملف (row 0) — هنا يجب أن تظهر أسماء المندوبين:**")
+        row0_df = pd.DataFrame([raw_row0], columns=range(len(raw_row0)))
+        st.dataframe(row0_df, hide_index=True)
+
+        st.markdown("**أسماء المندوبين التي استخرجها الكود من row0:**")
+        st.write(file_names if file_names else "⚠️ لم يُعثر على أسماء!")
+
+        st.markdown("**إجمالي التارجت لكل مندوب:**")
+        st.dataframe(pd.DataFrame(list(totals.items()), columns=["المندوب (ملف التارجت)", "إجمالي Target"]),
+                     hide_index=True)
+
+        st.markdown("**مطابقة الأسماء → أسماء ملف المبيعات:**")
+        mapping_rows = []
+        for fn in file_names:
+            match = _best_name_match(fn, sales_reps)
+            mapping_rows.append({"اسم في التارجت": fn,
+                                  "أفضل مطابقة في المبيعات": match or "❌ لا تطابق",
+                                  "حالة": "✅" if match else "❌"})
+        st.dataframe(pd.DataFrame(mapping_rows), hide_index=True)
+
+        st.markdown(f"**عدد الأصناف في ملف التارجت:** `{len(per_item)}`")
+        if per_item:
+            sample_key = next(iter(per_item))
+            st.markdown(f"**مثال — صنف `{sample_key}`:**")
+            st.write(per_item[sample_key])
+    else:
+        st.warning("لا توجد بيانات تارجت")
 
 # ── Filter Options ────────────────────────────────────────────────────────────
 all_years    = sorted(df_all["Year"].unique(), reverse=True)
@@ -180,7 +286,7 @@ with c5:
     sel_groups = st.multiselect("", all_groups, default=all_groups,
                                 label_visibility="collapsed", key="sel_groups")
 
-with c6: 
+with c6:
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("🔄 مسح"):
         for k in ["sel_year", "sel_months", "sel_reps", "sel_db", "sel_groups"]:
@@ -189,13 +295,11 @@ with c6:
         st.rerun()
 
 # ── Apply Filters ─────────────────────────────────────────────────────────────
-# التأكد من أن قيم الفلاتر هي قوائم (Lists) وليس أي نوع آخر
 if not sel_months_num: sel_months_num = all_months
 if not sel_reps:       sel_reps       = all_reps
 if not sel_db:         sel_db         = all_db
 if not sel_groups:     sel_groups     = all_groups
 
-# الفلترة الآمنة
 try:
     df = df_all[
         (df_all["Year"] == sel_year) &
@@ -206,9 +310,8 @@ try:
     ].copy()
 except Exception as e:
     st.error(f"حدث خطأ أثناء تطبيق الفلاتر: {e}")
-    # عرض أنواع البيانات للتأكد من المشكلة في حال استمر الخطأ
-    st.write(f"Type of sel_db: {type(sel_db)}")
     df = df_all.copy()
+
 # ── KPI Cards ─────────────────────────────────────────────────────────────────
 total_sales    = df["Amt"].sum()
 total_qty      = df["QYT"].sum()
@@ -238,7 +341,7 @@ st.markdown("---")
 # ── Pivot Table: Tree HTML (ItemGroup → ItemDescription) ──────────────────────
 st.markdown("### 📋 تفصيل المبيعات حسب العائلة والمندوب")
 
-def build_pivot_data(data, sel_reps_list):
+def build_pivot_data(data, sel_reps_list, target_data=None):
     """Return (family_df, items_dict, reps) for the tree table."""
     required = {"Salesperson", "Amt", "QYT", "ItemGroup", "ItemDescription"}
     if not required.issubset(data.columns) or data.empty:
@@ -259,9 +362,87 @@ def build_pivot_data(data, sel_reps_list):
         fam[f"q_{r}"] = fam_qty[r]
     fam["a_tot"] = fam_amt[reps].sum(axis=1)
     fam["q_tot"] = fam_qty[reps].sum(axis=1)
+
+    # ── حساب التارجت لكل مندوب ────────────────────────────────────────────────
+    raw_totals  = target_data.get("totals", {})   if target_data else {}
+    per_item    = target_data.get("per_item", {}) if target_data else {}
+    file_names  = target_data.get("rep_names_in_file", list(raw_totals.keys())) if target_data else []
+
+    # بناء جدول تحويل: اسم المندوب في ملف المبيعات → اسم المندوب في ملف التارجت
+    name_map = {}   # sales_name → file_name
+    for r in reps:
+        match = _best_name_match(r, file_names)
+        if match:
+            name_map[r] = match
+
+    # إعادة بناء rep_totals_dict بمفاتيح أسماء المبيعات
+    rep_totals_dict = {r: raw_totals.get(name_map[r], 0) for r in reps if r in name_map}
+
+    # إعادة بناء per_item بأسماء المبيعات (لاستخدامها في DataFrame)
+    per_item_mapped = {}
+    for item_code, rep_tgts in per_item.items():
+        per_item_mapped[item_code] = {}
+        for r in reps:
+            fn = name_map.get(r)
+            per_item_mapped[item_code][r] = rep_tgts.get(fn, 0) if fn else 0
+
+    # محاولة المطابقة بـ ItemCode أولاً ثم بـ ItemDescription
+    target_item_df = pd.DataFrame()
+    matched_col = None
+
+    if per_item_mapped:
+        for try_col in (["ItemCode", "ItemDescription"] if "ItemCode" in data.columns
+                        else ["ItemDescription"]):
+            item_target_rows = []
+            for key_val, rep_tgts in per_item_mapped.items():
+                row_dict = {try_col: key_val}
+                row_dict.update(rep_tgts)
+                item_target_rows.append(row_dict)
+            tdf = pd.DataFrame(item_target_rows).fillna(0)
+            tdf[try_col] = tdf[try_col].astype(str).str.strip()
+
+            # دائماً نجلب ItemDescription في نتيجة الـ merge حتى نستخدمها لاحقاً
+            dk_cols = [try_col, "ItemGroup"]
+            if try_col != "ItemDescription" and "ItemDescription" in data.columns:
+                dk_cols.append("ItemDescription")
+            dk = data[dk_cols].drop_duplicates().copy()
+            dk[try_col] = dk[try_col].astype(str).str.strip()
+
+            merged = tdf.merge(dk, on=try_col, how="left")
+            if merged["ItemGroup"].notna().sum() > 0:
+                target_item_df = merged
+                matched_col = try_col
+                break
+
+    use_per_item = not target_item_df.empty and matched_col is not None
+
+    # ── تارجت على مستوى العائلة ───────────────────────────────────────────────
+    if use_per_item:
+        fam_target_cols = [r for r in reps if r in target_item_df.columns]
+        fam_tgt = target_item_df.groupby("ItemGroup")[fam_target_cols].sum()
+        for r in reps:
+            if r in fam_tgt.columns:
+                fam[f"t_{r}"] = fam_tgt[r].reindex(fam.index, fill_value=0)
+            else:
+                fam[f"t_{r}"] = 0
+    else:
+        # Fallback: توزيع التارجت الإجمالي تناسباً مع الكمية المباعة
+        for r in reps:
+            total_tgt = rep_totals_dict.get(r, 0)
+            total_qty_rep = fam[f"q_{r}"].sum() if f"q_{r}" in fam else 0
+            if total_qty_rep > 0:
+                fam[f"t_{r}"] = (fam[f"q_{r}"] / total_qty_rep * total_tgt).fillna(0)
+            else:
+                fam[f"t_{r}"] = 0
+
+    # تصفير NaN المتبقية
+    for r in reps:
+        fam[f"t_{r}"] = pd.to_numeric(fam.get(f"t_{r}", 0), errors="coerce").fillna(0)
+
+    fam["t_tot"] = sum(fam[f"t_{r}"] for r in reps)
     fam = fam.reset_index().sort_values("a_tot", ascending=False)
 
-    # Item-level pivot per family
+    # ── Item-level pivot per family ───────────────────────────────────────────
     items = {}
     for grp, grp_df in data.groupby("ItemGroup"):
         ia = grp_df.pivot_table(index="ItemDescription", columns="Salesperson",
@@ -274,11 +455,45 @@ def build_pivot_data(data, sel_reps_list):
             rows[f"q_{r}"] = iq.get(r, 0)
         rows["a_tot"] = ia[[c for c in reps if c in ia.columns]].sum(axis=1)
         rows["q_tot"] = iq[[c for c in reps if c in iq.columns]].sum(axis=1)
+
+        # تارجت على مستوى الصنف
+        if use_per_item:
+            # المفتاح الصحيح للبحث هو ItemDescription دائماً (rows.index = ItemDescription)
+            # إذا كانت المطابقة تمت بـ ItemCode نحتاج عمود ItemDescription في target_item_df
+            lookup_col = ("ItemDescription"
+                          if matched_col != "ItemDescription" and "ItemDescription" in target_item_df.columns
+                          else matched_col)
+            for r in reps:
+                if r in target_item_df.columns:
+                    tdf_r = target_item_df[[lookup_col, r]].dropna(subset=[lookup_col])
+                    tdf_r = tdf_r.groupby(lookup_col)[r].sum()
+                    tgt_map = tdf_r.to_dict()
+                    rows[f"t_{r}"] = rows.index.map(
+                        lambda x, m=tgt_map: m.get(str(x).strip(), 0))
+                else:
+                    rows[f"t_{r}"] = 0
+        else:
+            # توزيع تناسبي من تارجت العائلة
+            fam_row = fam[fam["ItemGroup"] == grp]
+            for r in reps:
+                fam_tgt_r = float(fam_row[f"t_{r}"].iloc[0]) if (
+                    not fam_row.empty and f"t_{r}" in fam_row.columns) else 0
+                total_qty_grp = rows[f"q_{r}"].sum()
+                if total_qty_grp > 0:
+                    rows[f"t_{r}"] = (rows[f"q_{r}"] / total_qty_grp * fam_tgt_r).fillna(0)
+                else:
+                    rows[f"t_{r}"] = 0
+
+        for r in reps:
+            rows[f"t_{r}"] = pd.to_numeric(rows.get(f"t_{r}", 0), errors="coerce").fillna(0)
+
+        rows["t_tot"] = sum(rows[f"t_{r}"] for r in reps)
         items[grp] = rows.reset_index().sort_values("a_tot", ascending=False)
 
     return fam, items, reps
 
-fam_df, items_dict, reps_in_data = build_pivot_data(df, sel_reps)
+
+fam_df, items_dict, reps_in_data = build_pivot_data(df, sel_reps, target_data=target_data_v2)
 
 # ── Export ────────────────────────────────────────────────────────────────────
 ex1, ex2, _sp = st.columns([1, 1, 5])
@@ -288,16 +503,24 @@ if not fam_df.empty:
         grp = frow["ItemGroup"]
         base = {"العائلة": grp, "الصنف": ""}
         for r in reps_in_data:
-            base[f"{r} - Amt"] = frow.get(f"a_{r}", 0)
-            base[f"{r} - QTY"] = frow.get(f"q_{r}", 0)
+            base[f"{r} - QTY"]    = frow.get(f"q_{r}", 0)
+            base[f"{r} - Amt"]    = frow.get(f"a_{r}", 0)
+            base[f"{r} - Target"] = frow.get(f"t_{r}", 0)
+            tgt = frow.get(f"t_{r}", 0)
+            qty = frow.get(f"q_{r}", 0)
+            base[f"{r} - %"]      = f"{qty/tgt*100:.1f}%" if tgt else "-"
         base["الإجمالي - Amt"] = frow["a_tot"]
         base["الإجمالي - QTY"] = frow["q_tot"]
         export_rows.append(base)
         for _, irow in items_dict.get(grp, pd.DataFrame()).iterrows():
             ir = {"العائلة": grp, "الصنف": irow["ItemDescription"]}
             for r in reps_in_data:
-                ir[f"{r} - Amt"] = irow.get(f"a_{r}", 0)
-                ir[f"{r} - QTY"] = irow.get(f"q_{r}", 0)
+                ir[f"{r} - QTY"]    = irow.get(f"q_{r}", 0)
+                ir[f"{r} - Amt"]    = irow.get(f"a_{r}", 0)
+                ir[f"{r} - Target"] = irow.get(f"t_{r}", 0)
+                tgt = irow.get(f"t_{r}", 0)
+                qty = irow.get(f"q_{r}", 0)
+                ir[f"{r} - %"]      = f"{qty/tgt*100:.1f}%" if tgt else "-"
             ir["الإجمالي - Amt"] = irow["a_tot"]
             ir["الإجمالي - QTY"] = irow["q_tot"]
             export_rows.append(ir)
@@ -322,9 +545,29 @@ def fmt_n(v, decimals=2):
     except Exception:
         return str(v)
 
-def build_tree_html(fam_df, items_dict, reps):
+def fmt_pct(qty, target):
+    """احسب نسبة الإنجاز وأرجع نص ملوّن."""
+    try:
+        q = float(qty)
+        t = float(target)
+        if t <= 0:
+            return '<span style="color:#aaa">-</span>'
+        pct = q / t * 100
+        if pct >= 100:
+            color = "#2e7d32"   # أخضر
+        elif pct >= 75:
+            color = "#f57f17"   # برتقالي
+        else:
+            color = "#c62828"   # أحمر
+        return f'<span style="color:{color};font-weight:700">{pct:.1f}%</span>'
+    except Exception:
+        return '<span style="color:#aaa">-</span>'
+
+def build_tree_html(fam_df, items_dict, reps, target_data=None):
     COLORS = ["#e3f2fd","#fce4ec","#f3e5f5","#e8f5e9","#fff8e1",
               "#fbe9e7","#e0f7fa","#f9fbe7","#ede7f6","#fff3e0"]
+
+    has_targets = target_data is not None
 
     # ── style ──
     css = """
@@ -343,7 +586,7 @@ def build_tree_html(fam_df, items_dict, reps):
   .rep-total { font-size:12px !important; font-weight:800 !important;
       color:#ffd54f !important; letter-spacing:0.3px; }
 
-  /* Sticky first column on the RIGHT (LTR) */
+  /* Sticky first column */
   #tree-table th:first-child,
   #tree-table td:first-child {
       position: sticky; right: 0; z-index: 3;
@@ -366,6 +609,8 @@ def build_tree_html(fam_df, items_dict, reps):
   .item-row:hover td { background:#f8f9ff; }
   .item-row:hover td:first-child { background:#f8f9ff; }
   .total-col { background:#eef2ff !important; font-weight:700; }
+  .tgt-col   { background:#fff8e1 !important; color:#5d4037; }
+  .pct-col   { background:#f1f8e9 !important; }
   .grand-row td { background:#1a2332 !important; color:#fff !important;
       font-weight:900; font-size:12px; }
   .grand-row td:first-child { background:#1a2332 !important; }
@@ -373,26 +618,62 @@ def build_tree_html(fam_df, items_dict, reps):
 </style>"""
 
     # ── header ──
-    # حساب إجمالي مبيعات كل مندوب
-    total_all = float(fam_df["a_tot"].sum()) if "a_tot" in fam_df else 0
+    total_all  = float(fam_df["a_tot"].sum()) if "a_tot" in fam_df else 0
+    total_qty_all = float(fam_df["q_tot"].sum()) if "q_tot" in fam_df else 0
+    total_tgt_all = float(fam_df["t_tot"].sum()) if "t_tot" in fam_df else 0
     rep_totals = {r: float(fam_df[f"a_{r}"].sum()) if f"a_{r}" in fam_df else 0
                   for r in reps}
+    rep_qty_totals = {r: float(fam_df[f"q_{r}"].sum()) if f"q_{r}" in fam_df else 0
+                      for r in reps}
+    rep_tgt_totals = {r: float(fam_df[f"t_{r}"].sum()) if f"t_{r}" in fam_df else 0
+                      for r in reps}
 
-    # صف 1: أسماء المجموعات (العائلة / الإجمالي / المندوبين)
+    # عدد الأعمدة لكل مندوب
+    rep_colspan = 4 if has_targets else 2
+
+    # عدد أعمدة الإجمالي
+    tot_colspan = 4 if has_targets else 2
+
+    # صف 1: أسماء المجموعات
     row1 = '<th rowspan="3">العائلة / الصنف</th>'
-    row1 += '<th colspan="2">الإجمالي</th>'
+    row1 += f'<th colspan="{tot_colspan}">الإجمالي</th>'
     for rep in reps:
-        row1 += f'<th colspan="2">{rep}</th>'
+        row1 += f'<th colspan="{rep_colspan}">{rep}</th>'
 
-    # صف 2: إجمالي مبيعات كل مندوب (Amt فقط)
-    row2 = f'<th colspan="2" class="rep-total">{fmt_n(total_all)}</th>'
+    # صف 2: إجمالي الكل + إجمالي كل مندوب (مبيعات + هدف + نسبة)
+    if has_targets:
+        tot_pct = f"{total_qty_all/total_tgt_all*100:.1f}%" if total_tgt_all > 0 else "-"
+        row2 = (
+            f'<th colspan="2" class="rep-total">{fmt_n(total_all)}</th>'
+            f'<th class="rep-total" style="background:#2e5016;color:#c8e6c9">{fmt_n(total_tgt_all,0)}</th>'
+            f'<th class="rep-total" style="background:#2e5016;color:#c8e6c9">{tot_pct}</th>'
+        )
+    else:
+        row2 = f'<th colspan="2" class="rep-total">{fmt_n(total_all)}</th>'
+
     for rep in reps:
-        row2 += f'<th colspan="2" class="rep-total">{fmt_n(rep_totals[rep])}</th>'
+        if has_targets:
+            t = rep_tgt_totals.get(rep, 0)
+            q = rep_qty_totals.get(rep, 0)
+            pct_hdr = f"{q/t*100:.1f}%" if t > 0 else "-"
+            row2 += (
+                f'<th colspan="2" class="rep-total">{fmt_n(rep_totals[rep])}</th>'
+                f'<th class="rep-total" style="background:#2e5016;color:#c8e6c9">{fmt_n(t,0)}</th>'
+                f'<th class="rep-total" style="background:#2e5016;color:#c8e6c9">{pct_hdr}</th>'
+            )
+        else:
+            row2 += f'<th colspan="2" class="rep-total">{fmt_n(rep_totals[rep])}</th>'
 
-    # صف 3: Amt / QTY لكل عمود
-    row3 = "<th>Amt</th><th>QTY</th>"
+    # صف 3: أسماء الأعمدة الفرعية
+    if has_targets:
+        row3 = "<th>Amt</th><th>QTY</th><th>Target</th><th>%</th>"
+    else:
+        row3 = "<th>Amt</th><th>QTY</th>"
     for _ in reps:
-        row3 += "<th>Amt</th><th>QTY</th>"
+        if has_targets:
+            row3 += "<th>QTY</th><th>Amt</th><th>Target</th><th>%</th>"
+        else:
+            row3 += "<th>Amt</th><th>QTY</th>"
 
     head = f"""
 <thead>
@@ -403,23 +684,41 @@ def build_tree_html(fam_df, items_dict, reps):
 
     # ── rows ──
     body_rows = []
-    grand_amt = grand_qty = 0.0
+    grand_amt = grand_qty = grand_tgt = 0.0
 
     for idx, (_, frow) in enumerate(fam_df.iterrows()):
         grp    = frow["ItemGroup"]
         g_amt  = float(frow["a_tot"])
         g_qty  = float(frow["q_tot"])
+        g_tgt  = float(frow.get("t_tot", 0))
         grand_amt += g_amt
         grand_qty += g_qty
+        grand_tgt += g_tgt
         gid    = f"g{idx}"
         color  = COLORS[idx % len(COLORS)]
 
-        # الإجمالي أولاً ثم المندوبين
-        rep_cells = (f'<td class="num total-col">{fmt_n(g_amt)}</td>'
-                     f'<td class="num total-col">{fmt_n(g_qty,0)}</td>')
+        if has_targets:
+            rep_cells = (f'<td class="num total-col">{fmt_n(g_amt)}</td>'
+                         f'<td class="num total-col">{fmt_n(g_qty,0)}</td>'
+                         f'<td class="num tgt-col">{fmt_n(g_tgt,0)}</td>'
+                         f'<td class="num pct-col">{fmt_pct(g_qty, g_tgt)}</td>')
+        else:
+            rep_cells = (f'<td class="num total-col">{fmt_n(g_amt)}</td>'
+                         f'<td class="num total-col">{fmt_n(g_qty,0)}</td>')
         for r in reps:
-            rep_cells += (f'<td class="num">{fmt_n(frow.get(f"a_{r}",0))}</td>'
-                          f'<td class="num">{fmt_n(frow.get(f"q_{r}",0),0)}</td>')
+            r_qty = frow.get(f"q_{r}", 0)
+            r_amt = frow.get(f"a_{r}", 0)
+            r_tgt = frow.get(f"t_{r}", 0)
+            if has_targets:
+                rep_cells += (
+                    f'<td class="num">{fmt_n(r_qty,0)}</td>'
+                    f'<td class="num">{fmt_n(r_amt)}</td>'
+                    f'<td class="num tgt-col">{fmt_n(r_tgt,0)}</td>'
+                    f'<td class="num pct-col">{fmt_pct(r_qty, r_tgt)}</td>'
+                )
+            else:
+                rep_cells += (f'<td class="num">{fmt_n(r_amt)}</td>'
+                              f'<td class="num">{fmt_n(r_qty,0)}</td>')
 
         body_rows.append(
             f'<tr class="fam-row" onclick="toggle(\'{gid}\')">'
@@ -432,24 +731,60 @@ def build_tree_html(fam_df, items_dict, reps):
         idf = items_dict.get(grp, pd.DataFrame())
         for _, irow in idf.iterrows():
             item = str(irow.get("ItemDescription", ""))
-            item_rep_cells = (f'<td class="num total-col">{fmt_n(irow["a_tot"])}</td>'
-                              f'<td class="num total-col">{fmt_n(irow["q_tot"],0)}</td>')
+            i_tgt = float(irow.get("t_tot", 0))
+            i_qty = float(irow.get("q_tot", 0))
+            if has_targets:
+                item_rep_cells = (f'<td class="num total-col">{fmt_n(irow["a_tot"])}</td>'
+                                  f'<td class="num total-col">{fmt_n(i_qty,0)}</td>'
+                                  f'<td class="num tgt-col">{fmt_n(i_tgt,0)}</td>'
+                                  f'<td class="num pct-col">{fmt_pct(i_qty, i_tgt)}</td>')
+            else:
+                item_rep_cells = (f'<td class="num total-col">{fmt_n(irow["a_tot"])}</td>'
+                                  f'<td class="num total-col">{fmt_n(i_qty,0)}</td>')
             for r in reps:
-                item_rep_cells += (f'<td class="num">{fmt_n(irow.get(f"a_{r}",0))}</td>'
-                                   f'<td class="num">{fmt_n(irow.get(f"q_{r}",0),0)}</td>')
+                r_qty = irow.get(f"q_{r}", 0)
+                r_amt = irow.get(f"a_{r}", 0)
+                r_tgt = irow.get(f"t_{r}", 0)
+                if has_targets:
+                    item_rep_cells += (
+                        f'<td class="num">{fmt_n(r_qty,0)}</td>'
+                        f'<td class="num">{fmt_n(r_amt)}</td>'
+                        f'<td class="num tgt-col">{fmt_n(r_tgt,0)}</td>'
+                        f'<td class="num pct-col">{fmt_pct(r_qty, r_tgt)}</td>'
+                    )
+                else:
+                    item_rep_cells += (f'<td class="num">{fmt_n(r_amt)}</td>'
+                                       f'<td class="num">{fmt_n(r_qty,0)}</td>')
             body_rows.append(
                 f'<tr class="item-row" data-group="{gid}" style="display:none">'
                 f'<td>{item}</td>{item_rep_cells}</tr>'
             )
 
     # Grand Total row
-    gt_tot_cells = (f'<td class="num">{fmt_n(grand_amt)}</td>'
-                    f'<td class="num">{fmt_n(grand_qty,0)}</td>')
+    if has_targets:
+        gt_pct = f"{grand_qty/grand_tgt*100:.1f}%" if grand_tgt > 0 else "-"
+        gt_tot_cells = (f'<td class="num">{fmt_n(grand_amt)}</td>'
+                        f'<td class="num">{fmt_n(grand_qty,0)}</td>'
+                        f'<td class="num">{fmt_n(grand_tgt,0)}</td>'
+                        f'<td class="num">{gt_pct}</td>')
+    else:
+        gt_tot_cells = (f'<td class="num">{fmt_n(grand_amt)}</td>'
+                        f'<td class="num">{fmt_n(grand_qty,0)}</td>')
     gt_rep_cells = ""
     for r in reps:
         a = float(fam_df[f"a_{r}"].sum()) if f"a_{r}" in fam_df else 0
         q = float(fam_df[f"q_{r}"].sum()) if f"q_{r}" in fam_df else 0
-        gt_rep_cells += f'<td class="num">{fmt_n(a)}</td><td class="num">{fmt_n(q,0)}</td>'
+        t = rep_tgt_totals.get(r, 0)
+        if has_targets:
+            pct_val = f"{q/t*100:.1f}%" if t > 0 else "-"
+            gt_rep_cells += (
+                f'<td class="num">{fmt_n(q,0)}</td>'
+                f'<td class="num">{fmt_n(a)}</td>'
+                f'<td class="num">{fmt_n(t,0)}</td>'
+                f'<td class="num">{pct_val}</td>'
+            )
+        else:
+            gt_rep_cells += f'<td class="num">{fmt_n(a)}</td><td class="num">{fmt_n(q,0)}</td>'
     body_rows.append(
         f'<tr class="grand-row"><td>Grand Total</td>{gt_tot_cells}{gt_rep_cells}</tr>'
     )
@@ -470,46 +805,11 @@ function toggle(gid){
 
     return css + f'<div id="tree-wrap"><table id="tree-table">{head}{body}</table></div>' + js
 
+
 if not fam_df.empty:
-    html_table = build_tree_html(fam_df, items_dict, reps_in_data)
-    # estimate height: ~28px per family row + some buffer
+    html_table = build_tree_html(fam_df, items_dict, reps_in_data, target_data=target_data_v2)
     est_height = max(500, len(fam_df) * 30 + 120)
     components.html(html_table, height=est_height, scrolling=True)
-
-target_data_v2, target_err_v2 = load_targets_v2()
-if target_data_v2 and not fam_df.empty:
-    rep_totals = target_data_v2.get("totals", {})
-    actual_july = df_all[df_all["Month"] == 7].copy() if "Month" in df_all.columns else df_all.copy()
-    actual_by_rep = actual_july.groupby("Salesperson").agg(
-        Actual_QTY=("QYT", "sum"),
-        Actual_AMT=("Amt", "sum")
-    ).reset_index()
-    summary_rows = []
-    for rep in rep_totals:
-        target = float(rep_totals[rep]) if rep_totals[rep] else 0.0
-        rep_actual = actual_by_rep[actual_by_rep["Salesperson"] == rep]
-        if len(rep_actual) > 0:
-            actual_qty = float(rep_actual["Actual_QTY"].iloc[0])
-            actual_amt = float(rep_actual["Actual_AMT"].iloc[0])
-        else:
-            actual_qty = 0
-            actual_amt = 0
-        pct = (actual_qty / target * 100) if target > 0 else 0
-        summary_rows.append({
-            "المندوب": rep,
-            "Target": f"{target:,.0f}",
-            "Actual QTY": f"{actual_qty:,.0f}",
-            "Actual AMT": f"{actual_amt:,.2f}",
-            "Achievement %": f"{pct:.1f}%",
-        })
-    summary_df = pd.DataFrame(summary_rows).sort_values("Achievement %", ascending=False)
-    st.markdown("### Target vs Achievement Summary")
-    st.dataframe(summary_df, use_container_width=True, hide_index=True)
-elif target_err_v2:
-    st.warning(f"Target error: {target_err_v2}")
-
-
-
 
     st.markdown(f"""
     <div style='font-size:12px;color:#888;margin-top:4px;text-align:center;'>
@@ -518,6 +818,9 @@ elif target_err_v2:
     </div>""", unsafe_allow_html=True)
 else:
     st.info("لا توجد بيانات تطابق الفلاتر المحددة")
+
+if target_err_v2:
+    st.warning(f"ملاحظة: ملف التارجت - {target_err_v2}")
 
 st.markdown("---")
 
@@ -551,7 +854,6 @@ with ch2:
                    .reset_index()
                    .sort_values("Amt", ascending=False))
     fam_sales.columns = ["العائلة", "المبيعات"]
-    # Merge small families into "أخرى"
     threshold = fam_sales["المبيعات"].sum() * 0.02
     fam_sales.loc[fam_sales["المبيعات"] < threshold, "العائلة"] = "أخرى"
     fam_sales = fam_sales.groupby("العائلة")["المبيعات"].sum().reset_index()
@@ -589,6 +891,9 @@ st.markdown("""
   <strong>⚡ تنويه هام:</strong><br>
   • يتم احتساب الإجماليات بناءً على الفلاتر المحددة أعلاه<br>
   • التقرير يشمل جميع الفواتير (مبيعات + مرتجعات)<br>
-  • المبالغ بالدينار الأردني &nbsp;|&nbsp; المصدر: SAP Business One
+  • المبالغ بالدينار الأردني &nbsp;|&nbsp; المصدر: SAP Business One<br>
+  • نسبة الإنجاز: <span style="color:#2e7d32;font-weight:700">أخضر ≥100%</span> &nbsp;|&nbsp;
+    <span style="color:#f57f17;font-weight:700">برتقالي ≥75%</span> &nbsp;|&nbsp;
+    <span style="color:#c62828;font-weight:700">أحمر &lt;75%</span>
 </div>
 """, unsafe_allow_html=True)
