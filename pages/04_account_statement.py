@@ -92,7 +92,7 @@ else:
         final_df.to_excel(writer, index=False, sheet_name='Statement')
         # زر تحميل PDF
 if st.button("📄 تحميل كشف الحساب (PDF)"):
-    from utils.pdf_generator import generate_account_statement_pdf
+    from pdf_generator import generate_account_statement_pdf
     pdf_buffer = generate_account_statement_pdf(
         customer_name=selected_customer,
         company_name=", ".join(selected_companies),
