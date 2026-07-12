@@ -50,7 +50,7 @@ import os
 @st.cache_data
 def load_data():
     # البحث عن الملف في المجلد 'data' الموجود في المجلد الرئيسي للمشروع
-    file_path = os.path.join("data", "sales_customer.csv")
+    file_path = os.path.join('/workspaces/sap/data', "sales_customer.csv")
     
     if not os.path.exists(file_path):
         st.error(f"الملف غير موجود في المسار: {os.path.abspath(file_path)}")

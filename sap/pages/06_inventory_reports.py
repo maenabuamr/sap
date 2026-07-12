@@ -7,8 +7,8 @@ st.set_page_config(layout="wide", page_title="تقارير المخزون")
 st.title("📈 تقارير حركة ودوران المواد")
 
 # ─── مسارات الملفات ───────────────────────────────────────────
-TRANSFERS_PATH = "data/Items_Transfers.csv"
-INVENTORY_PATH = "data/inventory.csv"
+TRANSFERS_PATH = os.path.join('/workspaces/sap/data', r'Items_Transfers.csv')
+INVENTORY_PATH = os.path.join('/workspaces/sap/data', r'inventory.csv')
 
 if not os.path.exists(TRANSFERS_PATH):
     st.error(f"الملف غير موجود: {TRANSFERS_PATH}")
