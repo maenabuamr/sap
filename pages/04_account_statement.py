@@ -90,4 +90,16 @@ else:
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
         final_df.to_excel(writer, index=False, sheet_name='Statement')
+        # زر تحميل PDF
+if st.button("📄 تحميل كشف الحساب (PDF)"):
+    from utils.pdf_generator import generate_account_statement_pdf
+    pdf_buffer = generate_account_statement_pdf(
+        customer_name=selected_customer,
+        company_name=", ".join(selected_companies),
+        ref_number=str(ref_numbers[0]) if len(ref_numbers) > 0 else "",
+        statement_df=final_df,
+        aging_data=aging_df if 'aging_df' in dir() else None,
+        checks_data=checks_df if 'checks_df' in dir() else None
+    )
+    st.download_button("📥 حمّل PDF", pdf_buffer.getvalue(), "account_statement.pdf", "application/pdf")
     st.download_button("📥 تحميل كشف الحساب (Excel)", buffer.getvalue(), "account_statement.xlsx", "application/vnd.ms-excel")
