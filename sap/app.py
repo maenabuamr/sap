@@ -1,4 +1,26 @@
 import streamlit as st
+# PWA Configuration
+st.markdown("""
+<link rel="manifest" href="./static/manifest.json">
+<meta name="theme-color" content="#1a2332">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="SAP">
+<link rel="apple-touch-icon" href="./static/icon-192.png">
+<script>if("serviceWorker"in navigator){navigator.serviceWorker.register("./static/sw.js")}</script>
+""", unsafe_allow_html=True)
+
+
+
+
+
+
+
+
+
+
+
+import streamlit as st
 import os
 
 from config import PAGE_CONFIG
