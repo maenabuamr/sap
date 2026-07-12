@@ -103,3 +103,40 @@ if st.button("📄 تحميل كشف الحساب (PDF)"):
     )
     st.download_button("📥 حمّل PDF", pdf_buffer.getvalue(), "account_statement.pdf", "application/pdf")
     st.download_button("📥 تحميل كشف الحساب (Excel)", buffer.getvalue(), "account_statement.xlsx", "application/vnd.ms-excel")
+    st.divider()
+st.subheader("📄 تحميل PDF")
+
+# جيب البيانات الإضافية إذا موجودة
+aging_for_pdf = None
+checks_for_pdf = None
+try:
+    if 'aging_df' in dir() and aging_df is not None:
+        aging_for_pdf = aging_df[aging_df['اسم العميل'] == selected_customer] if 'اسم العميل' in aging_df.columns else aging_df[aging_df['CustomerName'] == selected_customer]
+except:
+    pass
+try:
+    if 'checks_df' in dir() and checks_df is not None:
+        checks_for_pdf = checks_df[checks_df['اسم العميل'] == selected_customer] if 'اسم العميل' in checks_df.columns else checks_df[checks_df['CustomerName'] == selected_customer]
+except:
+    pass
+
+if st.button("📄 إنشاء PDF", key="gen_pdf"):
+    try:
+        from pdf_generator import generate_account_statement_pdf
+        pdf_buffer = generate_account_statement_pdf(
+            customer_name=selected_customer,
+            company_name=", ".join(selected_companies) if selected_companies else "All",
+            ref_number=str(ref_numbers[0]) if len(ref_numbers) > 0 else "",
+            statement_df=final_df,
+            aging_data=aging_for_pdf,
+            checks_data=checks_for_pdf
+        )
+        st.download_button(
+            "📥 حمّل PDF",
+            pdf_buffer.getvalue(),
+            f"statement_{selected_customer[:20]}.pdf",
+            "application/pdf",
+            key="dl_pdf_btn"
+        )
+    except Exception as e:
+        st.error(f"❌ خطأ: {e}")
