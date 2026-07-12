@@ -1,142 +1,50 @@
 import streamlit as st
 import pandas as pd
-import os
 import io
-from utils import display_header
-from data_loader import load_aging, load_checks
+from data_loader import load_checks, load_statements
 
-# 1. الترويسة الثابتة
-display_header()
+st.set_page_config(layout="wide")
+st.title("📊 كشف الحساب الموحد")
 
-@st.cache_data
-def load_main_data():
-    file_path = os.path.join("data", "combined_statements.csv")
-    if not os.path.exists(file_path):
-        return None, f"الملف غير موجود في: {file_path}"
-    try:
-        df = pd.read_csv(file_path, encoding='utf-8-sig', sep=None, engine='python')
-        df.columns = df.columns.str.strip()
-        # تحويل الأعمدة الرقمية
-        for col in ['DebitAmount', 'CreditAmount']:
-            df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
-        # تحويل المرجع للنص والتاريخ للترتيب
-        if 'ReferenceNumber' in df.columns:
-            df['ReferenceNumber'] = df['ReferenceNumber'].astype(str).str.strip()
-        df['PostingDate'] = pd.to_numeric(df['PostingDate'], errors='coerce')
-        return df, None
-    except Exception as e:
-        return None, str(e)
+# تحميل البيانات
+df = load_statements()
+checks_df = load_checks()
 
-df, error = load_main_data()
-
-if error:
-    st.error(f"خطأ في تحميل الملف: {error}")
-else:
-    st.title("📊 كشف الحساب الموحد (معدل الأرصدة)")
-
-    # 3. الفلاتر
+if df is not None:
+    # الفلاتر
     col1, col2 = st.columns(2)
     with col1:
         companies = sorted(df['Company'].dropna().unique().tolist())
         selected_companies = st.multiselect("اختر الشركة:", companies, default=companies)
-    
     with col2:
         temp_df = df[df['Company'].isin(selected_companies)]
         customers = sorted(temp_df['CustomerName'].dropna().unique().tolist())
         selected_customer = st.selectbox("اختر العميل:", customers)
 
-    # 4. المنطق المدمج: اختيار العميل + فلتر الشركة
-    ref_numbers = df[df['CustomerName'] == selected_customer]['ReferenceNumber'].unique()
-    
-    # جلب الحركات للشركات المختارة مع إعادة حساب الرصيد
-    final_df = df[
-        (df['ReferenceNumber'].isin(ref_numbers)) & 
-        (df['Company'].isin(selected_companies))
-    ].copy()
-
-    # إعادة حساب الرصيد التراكمي للفلتر الحالي
+    # معالجة كشف الحساب
+    final_df = df[(df['CustomerName'] == selected_customer) & (df['Company'].isin(selected_companies))].copy()
     final_df = final_df.sort_values(by='PostingDate')
     final_df['RunningBalance'] = (final_df['DebitAmount'] - final_df['CreditAmount']).cumsum()
 
-    # عرض المؤشرات
-    m1, m2, m3 = st.columns(3)
-    m1.metric("إجمالي المدين", f"{final_df['DebitAmount'].sum():,.2f}")
-    m2.metric("إجمالي الدائن", f"{final_df['CreditAmount'].sum():,.2f}")
-    last_balance = final_df['RunningBalance'].iloc[-1] if not final_df.empty else 0
-    m3.metric("الرصيد المتبقي", f"{last_balance:,.2f}")
-
+    st.subheader(f"كشف حساب: {selected_customer}")
     st.dataframe(final_df, use_container_width=True)
 
-    # 5. قسم الإضافات (الأعمار والشيكات)
-    if not final_df.empty:
-        st.divider()
-        st.subheader(f"بيانات إضافية للعميل: {selected_customer}")
+    # عرض الشيكات
+    st.subheader("🏦 الشيكات المستقبلية")
+    if checks_df is not None and 'CustomerCode' in final_df.columns:
+        cust_id = final_df['CustomerCode'].iloc[0]
+        filtered_checks = checks_df[checks_df['رقم العميل'].astype(str) == str(cust_id)].copy()
         
-        tab1, tab2 = st.tabs(["🕒 أعمار الذمم", "🏦 الشيكات"])
-
-        with tab1:
-            aging_df = load_aging()
-            if aging_df is not None:
-                col_name = 'اسم العميل' if 'اسم العميل' in aging_df.columns else 'CustomerName'
-                st.dataframe(aging_df[aging_df[col_name] == selected_customer], use_container_width=True)
-
-        with tab2:
-            checks_df = load_checks()
-            if checks_df is not None:
-                col_name = 'اسم العميل' if 'اسم العميل' in checks_df.columns else 'CustomerName'
-                st.dataframe(checks_df[checks_df[col_name] == selected_customer], use_container_width=True)
-
-    # 6. التصدير
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-        final_df.to_excel(writer, index=False, sheet_name='Statement')
-        # زر تحميل PDF
-if st.button("📄 تحميل كشف الحساب (PDF)"):
-    from pdf_generator import generate_account_statement_pdf
-    pdf_buffer = generate_account_statement_pdf(
-        customer_name=selected_customer,
-        company_name=", ".join(selected_companies),
-        ref_number=str(ref_numbers[0]) if len(ref_numbers) > 0 else "",
-        statement_df=final_df,
-        aging_data=aging_df if 'aging_df' in dir() else None,
-        checks_data=checks_df if 'checks_df' in dir() else None
-    )
-    st.download_button("📥 حمّل PDF", pdf_buffer.getvalue(), "account_statement.pdf", "application/pdf")
-    st.download_button("📥 تحميل كشف الحساب (Excel)", buffer.getvalue(), "account_statement.xlsx", "application/vnd.ms-excel")
-    st.divider()
-st.subheader("📄 تحميل PDF")
-
-# جيب البيانات الإضافية إذا موجودة
-aging_for_pdf = None
-checks_for_pdf = None
-try:
-    if 'aging_df' in dir() and aging_df is not None:
-        aging_for_pdf = aging_df[aging_df['اسم العميل'] == selected_customer] if 'اسم العميل' in aging_df.columns else aging_df[aging_df['CustomerName'] == selected_customer]
-except:
-    pass
-try:
-    if 'checks_df' in dir() and checks_df is not None:
-        checks_for_pdf = checks_df[checks_df['اسم العميل'] == selected_customer] if 'اسم العميل' in checks_df.columns else checks_df[checks_df['CustomerName'] == selected_customer]
-except:
-    pass
-
-if st.button("📄 إنشاء PDF", key="gen_pdf"):
-    try:
-        from pdf_generator import generate_account_statement_pdf
-        pdf_buffer = generate_account_statement_pdf(
-            customer_name=selected_customer,
-            company_name=", ".join(selected_companies) if selected_companies else "All",
-            ref_number=str(ref_numbers[0]) if len(ref_numbers) > 0 else "",
-            statement_df=final_df,
-            aging_data=aging_for_pdf,
-            checks_data=checks_for_pdf
-        )
-        st.download_button(
-            "📥 حمّل PDF",
-            pdf_buffer.getvalue(),
-            f"statement_{selected_customer[:20]}.pdf",
-            "application/pdf",
-            key="dl_pdf_btn"
-        )
-    except Exception as e:
-        st.error(f"❌ خطأ: {e}")
+        if not filtered_checks.empty:
+            st.dataframe(filtered_checks, use_container_width=True)
+        else:
+            st.info("لا توجد شيكات مستقبلية لهذا العميل.")
+    
+    # التصدير
+    if st.button("📥 تحميل التقرير (Excel)"):
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer) as writer:
+            final_df.to_excel(writer, sheet_name='Statement', index=False)
+            if 'filtered_checks' in locals() and not filtered_checks.empty:
+                filtered_checks.to_excel(writer, sheet_name='Checks', index=False)
+        st.download_button("حفظ الملف الآن", buffer.getvalue(), "statement.xlsx")
