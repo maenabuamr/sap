@@ -83,3 +83,8 @@ data/*.feather
 # Large/restricted files
 *.zip
 fonts/AmiriQuran*.ttf
+
+# Playwright cache
+.cache/
+.ms-playwright/
+playwright/
