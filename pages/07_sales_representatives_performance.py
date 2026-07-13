@@ -49,7 +49,7 @@ import os
 
 @st.cache_data
 def load_data():
-    file_path = os.path.join("data", "sales_customer.csv")
+    file_path = "/workspaces/sap/data/sales_customer.csv"
     if not os.path.exists(file_path):
         st.error(f"الملف غير موجود في المسار: {os.path.abspath(file_path)}")
         return pd.DataFrame()
@@ -96,7 +96,7 @@ def load_targets_v2():
     - تخطي أول عمود Target qty (الإجمالي عند col 3)
     - قراءة قيمة Target qty لكل مندوب ولكل صنف مباشرة من العمود tc
     """
-    target_paths = ["data/salesperson_targets.csv", "salesperson_targets.csv"]
+    target_paths = ["/workspaces/sap/data/salesperson_targets.csv", "data/salesperson_targets.csv", "salesperson_targets.csv"]
     target_path  = None
     for p in target_paths:
         if os.path.exists(p):

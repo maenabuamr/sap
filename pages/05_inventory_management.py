@@ -14,7 +14,7 @@ display_header()
 # تحميل البيانات من ملف inventory.csv الموجود في مجلد data
 @st.cache_data
 def load_inventory_data():
-    file_path = os.path.join("data", "inventory.csv")
+    file_path = os.path.join('/workspaces/sap/data', "inventory.csv")
     if os.path.exists(file_path):
         # استخدام ترميز utf-8-sig للتعامل الصحيح مع اللغة العربية
         return pd.read_csv(file_path, encoding='utf-8-sig')

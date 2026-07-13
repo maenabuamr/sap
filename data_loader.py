@@ -1,23 +1,31 @@
 import pandas as pd
-import os
 import streamlit as st
 
+
+import os
+import pandas as pd
 @st.cache_data
+def load_sales():
+    return pd.read_csv(os.path.join('/workspaces/sap/data', 'sales_customer.csv'))
+
+
+@st.cache_data
+def load_aging():
+    """Load aging report from /workspaces/sap/data/"""
+    import os
+    import pandas as pd
+    fp = os.path.join('/workspaces/sap/data', 'aging_report.csv')
+    if os.path.exists(fp) and os.path.getsize(fp) > 0:
+        return pd.read_csv(fp, encoding='utf-8-sig')
+    return None
+
+
 def load_checks():
-    # 1. تحديد المسار المطلق لمجلد العمل الحالي
-    # بالنظر إلى مسار الخطأ، الملف يعمل من /workspaces/sap/sap/
-    # المجلد المطلوب هو /workspaces/sap/sap/data/
-    
-    # الحصول على مسار الملف الحالي
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    
-    # بناء مسار الملف باستخدام الانضمام لضمان التوافق
-    # سنستخدم المسار المباشر للمجلد 'data' الموجود بجانب 'data_loader.py'
-    file_path = os.path.join(current_dir, "data", "postdated_checks.csv")
-    
-    # للتشخيص: إذا فشل، سيخبرنا الكود أين يبحث بالضبط
-    if not os.path.exists(file_path):
-        st.error(f"❌ لم يتم العثور على الملف في المسار: {file_path}")
-        return None
-        
-    return pd.read_csv(file_path)
+    """Load postdated checks from /workspaces/sap/data/"""
+    import os
+    import pandas as pd
+    fp = os.path.join('/workspaces/sap/data', 'postdated_checks.csv')
+    if os.path.exists(fp) and os.path.getsize(fp) > 0:
+        return pd.read_csv(fp, encoding='utf-8-sig')
+    return pd.DataFrame(columns=['CustomerName', 'CheckNumber', 'Amount', 'DueDate', 'Status'])
+
