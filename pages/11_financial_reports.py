@@ -9,7 +9,7 @@ st.caption("قائمة الدخل والذمم والمخزون - مفلترة �
 
 @st.cache_data
 def load_sales():
-    df = pd.read_csv(os.path.join('/workspaces/sap/data', r'sales_customer.csv'))
+    df = pd.read_csv(os.path.join('data', r'sales_customer.csv'))
     # Normalize columns
     df["Amt"] = pd.to_numeric(df["Amt"], errors="coerce").fillna(0)
     df["QYT"] = pd.to_numeric(df["QYT"], errors="coerce").fillna(0)
@@ -19,7 +19,7 @@ def load_sales():
 
 @st.cache_data
 def load_aging():
-    df = pd.read_csv(os.path.join('/workspaces/sap/data', r'aging_report.csv'))
+    df = pd.read_csv(os.path.join('data', r'aging_report.csv'))
     for col in df.columns:
         cn = str(col)
         if any(kw in cn for kw in ["رصيد", "balance", "حركة"]):
@@ -28,11 +28,11 @@ def load_aging():
 
 @st.cache_data
 def load_production():
-    return pd.read_csv(os.path.join('/workspaces/sap/data', r'production_orders.csv'))
+    return pd.read_csv(os.path.join('data', r'production_orders.csv'))
 
 @st.cache_data
 def load_inventory():
-    return pd.read_csv(os.path.join('/workspaces/sap/data', r'inventory.csv'))
+    return pd.read_csv(os.path.join('data', r'inventory.csv'))
 
 sales_df = load_sales()
 aging_df = load_aging()

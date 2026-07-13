@@ -8,7 +8,7 @@ st.caption("تقارير الانتاج والكفاءة والتكاليف")
 
 @st.cache_data
 def load_orders():
-    df = pd.read_csv(os.path.join('/workspaces/sap/data', r'production_orders.csv'))
+    df = pd.read_csv(os.path.join('data', r'production_orders.csv'))
     df["OrderDate"] = pd.to_datetime(df["OrderDate"], format="%m/%d/%Y", errors="coerce")
     df["Year"] = df["OrderDate"].dt.year
     df["Month"] = df["OrderDate"].dt.month
@@ -18,7 +18,7 @@ def load_orders():
 
 @st.cache_data
 def load_materials():
-    df = pd.read_csv(os.path.join('/workspaces/sap/data', r'production_materials.csv'))
+    df = pd.read_csv(os.path.join('data', r'production_materials.csv'))
     df["OrderDate"] = pd.to_datetime(df["OrderDate"], format="%m/%d/%Y", errors="coerce")
     df["Year"] = df["OrderDate"].dt.year
     df["Month"] = df["OrderDate"].dt.month

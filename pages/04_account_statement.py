@@ -10,7 +10,7 @@ display_header()
 
 @st.cache_data
 def load_main_data():
-    file_path = os.path.join('/workspaces/sap/data', "combined_statements.csv")
+    file_path = os.path.join('data', "combined_statements.csv")
     if not os.path.exists(file_path):
         return None, f"الملف غير موجود في: {file_path}"
     try:

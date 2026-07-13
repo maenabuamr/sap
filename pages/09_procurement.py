@@ -6,7 +6,7 @@ import os
 st.set_page_config(layout="wide", page_title="إدارة المشتريات")
 st.title("🛒 إدارة المشتريات")
 
-PURCHASE_PATH = os.path.join('/workspaces/sap/data', r'purchase.csv')
+PURCHASE_PATH = os.path.join('data', r'purchase.csv')
 
 if not os.path.exists(PURCHASE_PATH):
     st.error(f"الملف غير موجود: {PURCHASE_PATH}")
