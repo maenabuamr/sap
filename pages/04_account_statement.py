@@ -20,7 +20,8 @@ def load_main_data():
             df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
         if 'ReferenceNumber' in df.columns:
             df['ReferenceNumber'] = df['ReferenceNumber'].astype(str).str.strip()
-        df['PostingDate'] = pd.to_numeric(df['PostingDate'], errors='coerce')
+        # ✅ إصلاح: تحويل التاريخ كـ datetime بدل numeric
+        df['PostingDate'] = pd.to_datetime(df['PostingDate'], dayfirst=False, errors='coerce')
         return df, None
     except Exception as e:
         return None, str(e)
