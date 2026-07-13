@@ -88,3 +88,8 @@ fonts/AmiriQuran*.ttf
 .cache/
 .ms-playwright/
 playwright/
+
+# Playwright cache
+.cache/
+.ms-playwright/
+playwright/
