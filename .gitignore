@@ -79,3 +79,7 @@ data/*.feather
 *.bak
 *.tmp
 *.orig
+
+# Large/restricted files
+*.zip
+fonts/AmiriQuran*.ttf
