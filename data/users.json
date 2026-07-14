@@ -15,7 +15,7 @@
       ]
     },
     "nader": {
-      "password_hash": "$2b$12$LIBMkp068W/fNYYRFGdrvuD4b6BfYYbRek6e4o7aterG2cnLFj28W",
+      "password_hash": "$2b$12$T3qlKfEhndHaok1neVJ1oul/QR8kco0hKpoS5jba.4J6Xoy1QrLwK",
       "role": "admin",
       "allowed_pages": [
         "all"
