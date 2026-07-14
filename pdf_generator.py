@@ -226,8 +226,9 @@ def generate_account_statement_pdf(
                 f"{d:,.2f}",   # col1 مدين
                 f"{c:,.2f}",   # col2 دائن
                 _ar(det),      # col3 تفاصيل
-                _ar(comp),     # col4 شركة
-                _ar(date),     # col5 تاريخ
+                _ar(docnum),   # col4 DocNum
+                _ar(comp),     # col5 شركة
+                _ar(date),     # col6 تاريخ
             ])
 
         # صف الإجمالي
@@ -236,6 +237,7 @@ def generate_account_statement_pdf(
             f"{total_d:,.2f}",
             f"{total_c:,.2f}",
             _ar(f"{len(statement_df)} سجل"),
+            "",
             "",
             _ar("الإجمالي"),
         ])
