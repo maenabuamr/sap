@@ -44,8 +44,8 @@ for username in list(users.keys()):
         c1, c2 = st.columns(2)
         if c1.button("تحديث", key=f"upd_{username}"):
             if new_pw:
-                    users[username]["password_hash"] = bcrypt.hashpw(new_pw.encode("utf-8"), bcrypt.gensalt(12)).decode("utf-8")
-                users[username]["allowed_pages"] = new_perms
+                users[username]["password_hash"] = bcrypt.hashpw(new_pw.encode("utf-8"), bcrypt.gensalt(12)).decode("utf-8")
+            users[username]["allowed_pages"] = new_perms
             with open(DATA_FILE, "w", encoding='utf-8') as f: json.dump(users, f, indent=4)
             st.rerun()
         if c2.button("حذف", key=f"del_{username}"):
