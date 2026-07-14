@@ -247,77 +247,43 @@ with tab7:
     else:
         if filtered_packaging.empty:
             st.warning("لا توجد بيانات تعبئة لهذه الفترة")
-            st.info("💡 جرب سنة/شهر/صنف ثاني")
+            st.info("جرب سنة/شهر/صنف ثاني")
         else:
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("عدد مواد التعبئة", filtered_packaging["RawMaterialCode"].nunique())
-            c2.metric("اجمالي الكمية", f"{filtered_packaging['ActualConsumedQty'].sum():,.0f}")
-            c3.metric("اجمالي التكلفة", f"{filtered_packaging['TotalMaterialCost'].sum():,.2f}")
-            c4.metric("عدد أوامر الإنتاج", filtered_packaging["ProductionOrderNo"].nunique())
-            st.divider()
-            st.subheader("أعلى مواد التعبئة بالتكلفة")
-            top_pkg = filtered_packaging.groupby(["RawMaterialCode", "RawMaterialName"]).agg(
-                TotalQty=("ActualConsumedQty", "sum"),
-                TotalCost=("TotalMaterialCost", "sum"),
-                AvgUnitPrice=("UnitPrice", "mean"),
-            ).reset_index().sort_values("TotalCost", ascending=False).head(20)
-            top_pkg["AvgUnitPrice"] = top_pkg["AvgUnitPrice"].round(4)
-            top_pkg["TotalQty"] = top_pkg["TotalQty"].round(0)
-            top_pkg["TotalCost"] = top_pkg["TotalCost"].round(2)
-            fig = px.bar(top_pkg, x="TotalCost", y="RawMaterialName", orientation="h",
-                         color="TotalCost", color_continuous_scale="Oranges",
-                         title="أعلى 20 مادة تعبئة بالتكلفة")
-            st.plotly_chart(fig, use_container_width=True)
-            st.dataframe(top_pkg, use_container_width=True, hide_index=True)
-            st.divider()
-            st.subheader("مواد التعبئة لكل منتج نهائي")
-            by_finished = filtered_packaging.groupby("FinishedItemName").agg(
-                PackagingItems=("RawMaterialCode", "nunique"),
-                TotalQty=("ActualConsumedQty", "sum"),
-                TotalCost=("TotalMaterialCost", "sum"),
-            ).reset_index().sort_values("TotalCost", ascending=False)
-            by_finished["TotalCost"] = by_finished["TotalCost"].round(2)
-            by_finished["TotalQty"] = by_finished["TotalQty"].round(0)
-            fig2 = px.bar(by_finished, x="TotalCost", y="FinishedItemName", orientation="h",
-                          color="TotalCost", color_continuous_scale="Greens",
-                          title="تكلفة التعبئة لكل منتج")
-            st.plotly_chart(fig2, use_container_width=True)
-            st.dataframe(by_finished, use_container_width=True, hide_index=True)
-            st.divider()
-            st.subheader("حسب المستودع المصدر")
-            by_warehouse = filtered_packaging.groupby("FromWarehouse").agg(
-                Materials=("RawMaterialCode", "nunique"),
-                TotalQty=("ActualConsumedQty", "sum"),
-                TotalCost=("TotalMaterialCost", "sum"),
-            ).reset_index().sort_values("TotalCost", ascending=False)
-            by_warehouse["TotalCost"] = by_warehouse["TotalCost"].round(2)
-            by_warehouse["TotalQty"] = by_warehouse["TotalQty"].round(0)
-            st.dataframe(by_warehouse, use_container_width=True, hide_index=True)
-            st.divider()
-            st.subheader("التوزيع الشهري")
-            if selected_month == "الكل":
-                monthly_pkg = filtered_packaging.groupby("Month").agg(
-                    Orders=("ProductionOrderNo", "nunique"),
-                    TotalQty=("ActualConsumedQty", "sum"),
-                    TotalCost=("TotalMaterialCost", "sum"),
-                ).reset_index()
-                monthly_pkg["MonthName"] = monthly_pkg["Month"].apply(lambda m: month_names[m-1])
-                monthly_pkg["TotalCost"] = monthly_pkg["TotalCost"].round(2)
-                monthly_pkg["TotalQty"] = monthly_pkg["TotalQty"].round(0)
-                fig3 = px.line(monthly_pkg, x="MonthName", y="TotalCost", markers=True,
-                               title="تكلفة التعبئة الشهرية")
-                st.plotly_chart(fig3, use_container_width=True)
-                st.dataframe(monthly_pkg, use_container_width=True, hide_index=True)
-            st.divider()
-            st.subheader("تفاصيل مواد التعبئة")
-            detail_cols = ["ProductionOrderNo", "OrderDate", "FinishedItemName",
-                           "RawMaterialCode", "RawMaterialName", "ActualConsumedQty",
-                           "UnitPrice", "TotalMaterialCost", "FromWarehouse"]
-            available_cols = [c for c in detail_cols if c in filtered_packaging.columns]
-            detail_df = filtered_packaging[available_cols].sort_values("TotalMaterialCost", ascending=False).head(100)
-            detail_df["TotalMaterialCost"] = detail_df["TotalMaterialCost"].round(2)
-            detail_df["UnitPrice"] = detail_df["UnitPrice"].round(4)
-            st.dataframe(detail_df, use_container_width=True, hide_index=True)
-
-st.divider()
+            st.markdown("#### فلاتر مواد التعبئة")
+            fcol1, fcol2 = st.columns(2)
+            with fcol1:
+                all_pkg = sorted(filtered_packaging["RawMaterialName"].dropna().unique().tolist())
+                sel_pkg = st.multiselect("مادة التعبئة:", all_pkg, default=[], key="f1")
+            with fcol2:
+                all_fin = sorted(filtered_packaging["FinishedItemName"].dropna().unique().tolist())
+                sel_fin = st.multiselect("المنتج النهائي:", all_fin, default=[], key="f2")
+            tab7_data = filtered_packaging.copy()
+            if sel_pkg:
+                tab7_data = tab7_data[tab7_data["RawMaterialName"].isin(sel_pkg)]
+            if sel_fin:
+                tab7_data = tab7_data[tab7_data["FinishedItemName"].isin(sel_fin)]
+            st.info("عدد السجلات: " + str(len(tab7_data)))
+            if not tab7_data.empty:
+                c1,c2,c3,c4 = st.columns(4)
+                c1.metric("مواد تعبئة", tab7_data["RawMaterialCode"].nunique())
+                c2.metric("كمية", f"{tab7_data['ActualConsumedQty'].sum():,.0f}")
+                c3.metric("تكلفة", f"{tab7_data['TotalMaterialCost'].sum():,.2f}")
+                c4.metric("أوامر", tab7_data["ProductionOrderNo"].nunique())
+                st.divider()
+                st.subheader("ملخص حسب مادة التعبئة")
+                by_pkg = tab7_data.groupby(["RawMaterialCode","RawMaterialName"]).agg(TotalQty=("ActualConsumedQty","sum"),TotalCost=("TotalMaterialCost","sum"),AvgPrice=("UnitPrice","mean"),UsedIn=("FinishedItemName","nunique")).reset_index().sort_values("TotalCost", ascending=False)
+                by_pkg["AvgPrice"] = by_pkg["AvgPrice"].round(4)
+                st.dataframe(by_pkg, use_container_width=True, hide_index=True)
+                st.subheader("حسب المنتج النهائي")
+                by_fin = tab7_data.groupby(["FinishedItemCode","FinishedItemName"]).agg(Items=("RawMaterialCode","nunique"),TotalQty=("ActualConsumedQty","sum"),TotalCost=("TotalMaterialCost","sum")).reset_index().sort_values("TotalCost", ascending=False)
+                st.dataframe(by_fin, use_container_width=True, hide_index=True)
+                st.subheader("حسب المستودع")
+                by_wh = tab7_data.groupby("FromWarehouse").agg(Materials=("RawMaterialCode","nunique"),TotalCost=("TotalMaterialCost","sum")).reset_index().sort_values("TotalCost", ascending=False)
+                st.dataframe(by_wh, use_container_width=True, hide_index=True)
+                st.subheader("التفاصيل الكاملة")
+                det_cols = ["ProductionOrderNo","OrderDate","FinishedItemName","RawMaterialCode","RawMaterialName","ActualConsumedQty","UnitPrice","TotalMaterialCost","FromWarehouse"]
+                avail = [c for c in det_cols if c in tab7_data.columns]
+                det = tab7_data[avail].sort_values("TotalMaterialCost", ascending=False)
+                st.dataframe(det, use_container_width=True, hide_index=True)
+                st.download_button("تحميل CSV", det.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig"), "pkg.csv", "text/csv")st.divider()
 st.caption("ERP AI Analytics | Production V2.0")
