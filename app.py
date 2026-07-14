@@ -24,9 +24,9 @@ import streamlit as st
 import os
 
 from config import PAGE_CONFIG
+from auth import verify_credentials
 
 # Simple PIN login — set APP_PIN env var to change.
-APP_PIN = os.environ.get("APP_PIN", "1234")
 
 if "user_info" not in st.session_state:
     st.session_state.user_info = None
@@ -41,17 +41,19 @@ if st.session_state.user_info is None:
         unsafe_allow_html=True,
     )
     st.title("🔐 تسجيل الدخول")
-    pin = st.text_input("رمز الدخول", type="password")
+    username = st.text_input("اسم المستخدم", key="login_user")
+    password = st.text_input("كلمة المرور", type="password", key="login_pass")
     if st.button("دخول"):
-        if pin == APP_PIN:
+        ok, role = verify_credentials(username, password)
+        if ok:
             st.session_state.user_info = {
-                "username": "user",
-                "role": "admin",
+                "username": username,
+                "role": role or "user",
                 "allowed_pages": [],
             }
             st.rerun()
         else:
-            st.error("رمز خاطئ")
+            st.error("اسم المستخدم أو كلمة المرور خاطئة")
         st.stop()
     st.stop()
 
