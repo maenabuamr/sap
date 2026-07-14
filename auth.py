@@ -67,7 +67,7 @@ def hash_password(plain: str) -> str:
     ).decode("utf-8")
 
 
-def verify_credentials(username: str, password: str) -> Tuple[bool, Optional[str]]:
+def verify_credentials(username: str, password: str) -> Tuple[bool, Optional[str], list]:
     """
     Verify (username, password) against data/users.json.
     Returns (ok, role). If not ok, role is None.
@@ -86,13 +86,13 @@ def verify_credentials(username: str, password: str) -> Tuple[bool, Optional[str
 
     if record is None or "password_hash" not in record:
         bcrypt.checkpw(password.encode("utf-8"), DUMMY)  # burn the time
-        return False, None
+        return False, None, []
 
     stored_hash = record["password_hash"].encode("utf-8")
     ok = bcrypt.checkpw(password.encode("utf-8"), stored_hash)
     if not ok:
-        return False, None
-    return True, record.get("role", "user")
+        return False, None, []
+    return True, record.get("role", "user"), record.get("allowed_pages", ["all"])
 
 
 def create_or_update_user(

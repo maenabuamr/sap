@@ -1,37 +1,47 @@
 {
-  "admin": {
-    "password_hash": "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj/RqHpwQJW2",
-    "role": "admin",
-    "allowed_pages": [
-      "all"
-    ]
-  },
-  "user": {
-    "password_hash": "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj/RqHpwQJW2",
-    "role": "user",
-    "allowed_pages": [
-      "all"
-    ]
-  },
-  "nader": {
-    "password_hash": "$2b$12$T3qlKfEhndHaok1neVJ1oul/QR8kco0hKpoS5jba.4J6Xoy1QrLwK",
-    "role": "admin",
-    "allowed_pages": [
-      "all"
-    ]
-  },
-  "admin2": {
-    "password_hash": "$2b$12$LIBMkp068W/fNYYRFGdrvuD4b6BfYYbRek6e4o7aterG2cnLFj28W",
-    "role": "admin",
-    "allowed_pages": [
-      "all"
-    ]
-  },
-  "sap_admin": {
-    "password_hash": "$2b$12$r2vKJICxmvjqXoWvx9O/1uX9DNVXL00FxHS4rs0D61Q2dKYh5RZry",
-    "role": "admin",
-    "allowed_pages": [
-      "all"
-    ]
-  }
+    "admin": {
+        "password_hash": "$2b$12$Dpdi/6jzqT9bgGft6zeABelsHtJEPSlNwX2uru7RNHBUIqaq0P0ne",
+        "role": "admin",
+        "allowed_pages": [
+            "13_sales_dashboard.py",
+            "03_sales_analytics.py",
+            "07_sales_representatives_performance.py",
+            "04_account_statement.py",
+            "02_credit_management.py",
+            "05_inventory_management.py",
+            "06_inventory_reports.py",
+            "09_procurement.py",
+            "10_production.py",
+            "11_financial_reports.py"
+        ]
+    },
+    "nader": {
+        "password_hash": "$2b$12$OUKT4Q8qyJphAUxNW0rgPulnqFAa7lWxdBCGhwWf8lz1yg3GA2bJO",
+        "role": "admin",
+        "allowed_pages": [
+            "13_sales_dashboard.py",
+            "03_sales_analytics.py",
+            "07_sales_representatives_performance.py",
+            "04_account_statement.py",
+            "02_credit_management.py",
+            "05_inventory_management.py",
+            "06_inventory_reports.py"
+        ]
+    },
+    "sap_admin": {
+        "password_hash": "$2b$12$j1gvbq7D92dtvwqsOq4wdO/FbqpscId7gwOO6yiRQRWgMnGEWScMy",
+        "role": "admin",
+        "allowed_pages": [
+            "13_sales_dashboard.py",
+            "03_sales_analytics.py",
+            "07_sales_representatives_performance.py",
+            "04_account_statement.py",
+            "02_credit_management.py",
+            "05_inventory_management.py",
+            "06_inventory_reports.py",
+            "09_procurement.py",
+            "10_production.py",
+            "11_financial_reports.py"
+        ]
+    }
 }

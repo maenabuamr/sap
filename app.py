@@ -44,12 +44,12 @@ if st.session_state.user_info is None:
     username = st.text_input("اسم المستخدم", key="login_user")
     password = st.text_input("كلمة المرور", type="password", key="login_pass")
     if st.button("دخول"):
-        ok, role = verify_credentials(username, password)
+        ok, role, allowed_pages = verify_credentials(username, password)
         if ok:
             st.session_state.user_info = {
                 "username": username,
                 "role": role or "user",
-                "allowed_pages": [],
+                "allowed_pages": allowed_pages,
             }
             st.rerun()
         else:
