@@ -34,7 +34,11 @@ st.subheader("المستخدمون المسجلون")
 for username in list(users.keys()):
     with st.expander(f"👤 {username}"):
         new_pw = st.text_input(f"كلمة سر لـ {username}", key=f"pw_{username}")
-        new_perms = st.multiselect("الصلاحيات", all_files, default=users[username].get("allowed_pages", []), key=f"perm_{username}")
+        current_perms = users[username].get('allowed_pages', [])
+        valid_perms = [p for p in current_perms if p in all_files or p == 'all']
+        if 'all' in current_perms:
+            valid_perms = list(all_files)
+        new_perms = st.multiselect("الصلاحيات", all_files, default=valid_perms, key=f"perm_{username}")
         
         c1, c2 = st.columns(2)
         if c1.button("تحديث", key=f"upd_{username}"):
