@@ -268,15 +268,12 @@ with tab6:
         with fcol2:
             exp_years = sorted(expenses_df["Year"].dropna().unique().tolist(), reverse=True)
             sel_exp_year = st.selectbox("السنة:", exp_years, index=0, key="exp_yr")
-            exp_acc_pairs = expenses_df[["رقم الحساب", "اسم الحساب"]].drop_duplicates()
-            exp_acc_pairs = exp_acc_pairs.dropna(subset=["اسم الحساب"])
-            exp_acc_pairs["label"] = exp_acc_pairs["رقم الحساب"].astype(str) + " - " + exp_acc_pairs["اسم الحساب"].astype(str)
-            exp_acc_dict = dict(zip(exp_acc_pairs["label"], exp_acc_pairs["رقم الحساب"]))
-            sel_exp_accounts = st.multiselect("نوع المصروف (رقم - اسم):", list(exp_acc_dict.keys()), default=list(exp_acc_dict.keys()), key="exp_ac")
         with fcol3:
+            exp_account_names = sorted(expenses_df["اسم الحساب"].dropna().unique().tolist())
+            sel_exp_accounts = st.multiselect("نوع المصروف (اسم الحساب):", exp_account_names, default=exp_account_names, key="exp_ac")
+        with fcol4:
             exp_months_list = ["الكل"] + month_names
             sel_exp_month = st.selectbox("الشهر:", exp_months_list, index=0, key="exp_mo")
-        with fcol4:
 
         # تطبيق الفلاتر
         exp_filtered = expenses_df[expenses_df["الشركة"].isin(sel_company)].copy()
@@ -284,8 +281,7 @@ with tab6:
         if sel_exp_month != "الكل":
             exp_filtered = exp_filtered[exp_filtered["Month"] == month_names.index(sel_exp_month) + 1]
         if sel_exp_accounts:
-            selected_codes = [int(exp_acc_dict[s]) for s in sel_exp_accounts]
-            exp_filtered = exp_filtered[exp_filtered["رقم الحساب"].astype(str).isin(selected_codes)]
+            exp_filtered = exp_filtered[exp_filtered["اسم الحساب"].isin(sel_exp_accounts)]
 
         if exp_filtered.empty:
             st.warning("لا توجد بيانات للفترة المختارة")
