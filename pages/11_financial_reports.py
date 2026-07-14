@@ -35,10 +35,23 @@ def load_production():
 def load_inventory():
     return pd.read_csv(os.path.join('data', r'inventory.csv'))
 
+@st.cache_data
+def load_expenses():
+    """Load expenses data"""
+    df = pd.read_csv(os.path.join('data', r'expenses.csv'), encoding='utf-8-sig')
+    df.columns = df.columns.str.strip()
+    # Parse date
+    df["Date"] = pd.to_datetime(df["التاريخ"], format="%m/%d/%Y", errors="coerce")
+    df["Year"] = df["Date"].dt.year
+    df["Month"] = df["Date"].dt.month
+    df["Amount"] = pd.to_numeric(df["المبلغ"], errors="coerce").fillna(0)
+    return df
+
 sales_df = load_sales()
 aging_df = load_aging()
 production_df = load_production()
 inventory_df = load_inventory()
+expenses_df = load_expenses()
 
 st.markdown("### الفلاتر")
 fcol1, fcol2 = st.columns(2)
@@ -87,8 +100,8 @@ k5.metric("إجمالي الذمم", f"{ar_total:,.0f}")
 st.divider()
 
 # Tabs
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "1- قائمة الدخل", "2- الذمم المدينة", "3- المخزون", "4- أكبر المدينين", "5- الاتجاه الشهري"
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    "1- قائمة الدخل", "2- الذمم المدينة", "3- المخزون", "4- أكبر المدينين", "5- الاتجاه الشهري", "6- المصروفات"
 ])
 
 with tab1:
@@ -242,5 +255,99 @@ with tab5:
                           markers=True, title=f"مقارنة {int(prev_year)} vs {int(selected_year)}")
             st.plotly_chart(fig2, use_container_width=True)
 
+with tab6:
+    st.subheader("تقرير المصروفات")
+    if expenses_df.empty:
+        st.warning("لا توجد بيانات مصروفات")
+    else:
+        # فلاتر خاصة
+        fcol1, fcol2 = st.columns(2)
+        with fcol1:
+            companies = sorted(expenses_df["الشركة"].dropna().unique().tolist())
+            sel_company = st.multiselect("الشركة:", companies, default=companies, key="exp_co")
+        with fcol2:
+            exp_years = sorted(expenses_df["Year"].dropna().unique().tolist(), reverse=True)
+            sel_exp_year = st.selectbox("السنة:", exp_years, index=0, key="exp_yr")
+
+        # تطبيق الفلاتر
+        exp_filtered = expenses_df[expenses_df["الشركة"].isin(sel_company)].copy()
+        exp_filtered = exp_filtered[exp_filtered["Year"] == sel_exp_year].copy()
+        if selected_month != "الكل":
+            exp_filtered = exp_filtered[exp_filtered["Month"] == month_names.index(selected_month) + 1]
+
+        if exp_filtered.empty:
+            st.warning("لا توجد بيانات للفترة المختارة")
+        else:
+            # KPIs
+            total_exp = exp_filtered["Amount"].sum()
+            count_exp = len(exp_filtered)
+            avg_exp = total_exp / count_exp if count_exp > 0 else 0
+            top_exp = exp_filtered.nlargest(1, "Amount")
+            top_amount = top_exp["Amount"].iloc[0] if not top_exp.empty else 0
+
+            k1, k2, k3, k4 = st.columns(4)
+            k1.metric("اجمالي المصروفات", f"{total_exp:,.2f}")
+            k2.metric("عدد السجلات", f"{count_exp:,}")
+            k3.metric("متوسط المصروف", f"{avg_exp:,.2f}")
+            k4.metric("اكبر مصروف", f"{top_amount:,.2f}")
+
+            st.divider()
+
+            # Top 10 حسابات
+            st.subheader("أعلى 10 حسابات مصروف")
+            by_account = exp_filtered.groupby(["رقم الحساب", "اسم الحساب"]).agg(
+                Total=("Amount", "sum"),
+                Count=("Amount", "count"),
+            ).reset_index().sort_values("Total", ascending=False).head(10)
+            by_account["Total"] = by_account["Total"].round(2)
+            fig1 = px.bar(by_account, x="Total", y="اسم الحساب", orientation="h",
+                          color="Total", color_continuous_scale="Reds",
+                          title="أعلى 10 حسابات")
+            st.plotly_chart(fig1, use_container_width=True)
+            st.dataframe(by_account, use_container_width=True, hide_index=True)
+
+            st.divider()
+
+            # شهري
+            st.subheader("المصروفات الشهرية")
+            if selected_month == "الكل":
+                monthly_exp = exp_filtered.groupby("Month").agg(
+                    Total=("Amount", "sum"),
+                    Count=("Amount", "count")
+                ).reset_index()
+                monthly_exp["MonthName"] = monthly_exp["Month"].apply(lambda m: month_names[int(m)-1])
+                fig2 = px.line(monthly_exp, x="MonthName", y="Total", markers=True,
+                               title=f"المصروفات الشهرية {int(sel_exp_year)}")
+                st.plotly_chart(fig2, use_container_width=True)
+                st.dataframe(monthly_exp, use_container_width=True, hide_index=True)
+
+            st.divider()
+
+            # حسب نوع المستند
+            st.subheader("حسب نوع المستند")
+            by_type = exp_filtered.groupby("نوع المستند").agg(
+                Total=("Amount", "sum"),
+                Count=("Amount", "count")
+            ).reset_index().sort_values("Total", ascending=False)
+            if not by_type.empty:
+                fig3 = px.pie(by_type, values="Total", names="نوع المستند", hole=0.4)
+                st.plotly_chart(fig3, use_container_width=True)
+                st.dataframe(by_type, use_container_width=True, hide_index=True)
+
+            st.divider()
+
+            # تفاصيل
+            st.subheader("التفاصيل الكاملة")
+            detail_cols = ["الشركة", "التاريخ", "رقم الحساب", "اسم الحساب",
+                           "رقم السند", "نوع المستند", "البيان/الشرح", "المبلغ"]
+            avail = [c for c in detail_cols if c in exp_filtered.columns]
+            det = exp_filtered[avail].sort_values("المبلغ", ascending=False)
+            st.dataframe(det, use_container_width=True, hide_index=True)
+            st.download_button(
+                "تحميل CSV",
+                det.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig"),
+                "expenses.csv", "text/csv"
+            )
+
 st.divider()
-st.caption("ERP AI Analytics | Financial Reports V1.0")
+st.caption("ERP AI Analytics | Financial Reports V2.0")
