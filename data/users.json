@@ -16,7 +16,7 @@
         ]
     },
     "nader": {
-        "password_hash": "$2b$12$OUKT4Q8qyJphAUxNW0rgPulnqFAa7lWxdBCGhwWf8lz1yg3GA2bJO",
+        "password_hash": "$2b$12$uX7KSYnw25iwXAyvgRdj6eW6QI5vLngzaxiPswJ0SKrAaQQix7Rjq",
         "role": "admin",
         "allowed_pages": [
             "13_sales_dashboard.py",

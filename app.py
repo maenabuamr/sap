@@ -60,8 +60,9 @@ if st.session_state.user_info is None:
 # ─── Post-login — full navigation ───
 role = st.session_state.user_info.get("role")
 allowed = st.session_state.user_info.get("allowed_pages", [])
+is_full_admin = role == "admin" and (not allowed or allowed == ["all"])
 nav_structure = {}
-if role == "admin":
+if is_full_admin:
     for group, pages in PAGE_CONFIG.items():
         nav_structure[group] = [st.Page(f"pages/{p[0]}", title=p[1], icon=p[2]) for p in pages]
     nav_structure["إدارة النظام"] = [
