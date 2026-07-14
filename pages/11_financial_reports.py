@@ -268,7 +268,11 @@ with tab6:
         with fcol2:
             exp_years = sorted(expenses_df["Year"].dropna().unique().tolist(), reverse=True)
             sel_exp_year = st.selectbox("السنة:", exp_years, index=0, key="exp_yr")
-            sel_exp_accounts = st.multiselect("نوع المصروف (اسم الحساب):", sorted(expenses_df["اسم الحساب"].dropna().unique().tolist()), default=sorted(expenses_df["اسم الحساب"].dropna().unique().tolist()), key="exp_ac")
+            exp_acc_pairs = expenses_df[["رقم الحساب", "اسم الحساب"]].drop_duplicates()
+            exp_acc_pairs = exp_acc_pairs.dropna(subset=["اسم الحساب"])
+            exp_acc_pairs["label"] = exp_acc_pairs["رقم الحساب"].astype(str) + " - " + exp_acc_pairs["اسم الحساب"].astype(str)
+            exp_acc_dict = dict(zip(exp_acc_pairs["label"], exp_acc_pairs["رقم الحساب"]))
+            sel_exp_accounts = st.multiselect("نوع المصروف (رقم - اسم):", list(exp_acc_dict.keys()), default=list(exp_acc_dict.keys()), key="exp_ac")
         with fcol3:
             exp_months_list = ["الكل"] + month_names
             sel_exp_month = st.selectbox("الشهر:", exp_months_list, index=0, key="exp_mo")
@@ -281,7 +285,7 @@ with tab6:
         if sel_exp_month != "الكل":
             exp_filtered = exp_filtered[exp_filtered["Month"] == month_names.index(sel_exp_month) + 1]
         if sel_exp_accounts:
-            selected_codes = [s.split(" - ")[0] for s in sel_exp_accounts]
+            selected_codes = [int(exp_acc_dict[s]) for s in sel_exp_accounts]
             exp_filtered = exp_filtered[exp_filtered["رقم الحساب"].astype(str).isin(selected_codes)]
 
         if exp_filtered.empty:
