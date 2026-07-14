@@ -3,17 +3,7 @@
     "password_hash": "$2b$12$Dpdi/6jzqT9bgGft6zeABelsHtJEPSlNwX2uru7RNHBUIqaq0P0ne",
     "role": "admin",
     "allowed_pages": [
-      "13_sales_dashboard.py",
-      "03_sales_analytics.py",
-      "07_sales_representatives_performance.py",
-      "04_account_statement.py",
-      "02_credit_management.py",
-      "05_inventory_management.py",
-      "06_inventory_reports.py",
-      "09_procurement.py",
-      "10_production.py",
-      "11_financial_reports.py",
-      "08_admin_users.py"
+      "all"
     ]
   },
   "nader": {
@@ -34,17 +24,7 @@
     "password_hash": "$2b$12$j1gvbq7D92dtvwqsOq4wdO/FbqpscId7gwOO6yiRQRWgMnGEWScMy",
     "role": "admin",
     "allowed_pages": [
-      "13_sales_dashboard.py",
-      "03_sales_analytics.py",
-      "07_sales_representatives_performance.py",
-      "04_account_statement.py",
-      "02_credit_management.py",
-      "05_inventory_management.py",
-      "06_inventory_reports.py",
-      "09_procurement.py",
-      "10_production.py",
-      "11_financial_reports.py",
-      "08_admin_users.py"
+      "all"
     ]
   }
 }
