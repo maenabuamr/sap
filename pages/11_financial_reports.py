@@ -261,19 +261,27 @@ with tab6:
         st.warning("لا توجد بيانات مصروفات")
     else:
         # فلاتر خاصة
-        fcol1, fcol2 = st.columns(2)
+        fcol1, fcol2, fcol3, fcol4 = st.columns(4)
         with fcol1:
             companies = sorted(expenses_df["الشركة"].dropna().unique().tolist())
             sel_company = st.multiselect("الشركة:", companies, default=companies, key="exp_co")
         with fcol2:
             exp_years = sorted(expenses_df["Year"].dropna().unique().tolist(), reverse=True)
             sel_exp_year = st.selectbox("السنة:", exp_years, index=0, key="exp_yr")
+        with fcol3:
+            exp_months_list = ["الكل"] + month_names
+            sel_exp_month = st.selectbox("الشهر:", exp_months_list, index=0, key="exp_mo")
+        with fcol4:
+            exp_types = sorted(expenses_df["نوع المستند"].dropna().unique().tolist())
+            sel_exp_types = st.multiselect("نوع المصروف:", exp_types, default=exp_types, key="exp_ty")
 
         # تطبيق الفلاتر
         exp_filtered = expenses_df[expenses_df["الشركة"].isin(sel_company)].copy()
         exp_filtered = exp_filtered[exp_filtered["Year"] == sel_exp_year].copy()
-        if selected_month != "الكل":
-            exp_filtered = exp_filtered[exp_filtered["Month"] == month_names.index(selected_month) + 1]
+        if sel_exp_month != "الكل":
+            exp_filtered = exp_filtered[exp_filtered["Month"] == month_names.index(sel_exp_month) + 1]
+        if sel_exp_types:
+            exp_filtered = exp_filtered[exp_filtered["نوع المستند"].isin(sel_exp_types)]
 
         if exp_filtered.empty:
             st.warning("لا توجد بيانات للفترة المختارة")
