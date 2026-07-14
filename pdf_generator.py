@@ -192,10 +192,11 @@ def generate_account_statement_pdf(
             _ar("مدين"),           # col1
             _ar("دائن"),           # col2
             _ar("تفاصيل الحركة"), # col3
-            _ar("الشركة"),         # col4
-            _ar("تاريخ الحركة"),  # col5 — أقصى اليمين
+            _ar("DocNum"),        # col4 — رقم الحركة
+            _ar("الشركة"),         # col5
+            _ar("تاريخ الحركة"),  # col6 — أقصى اليمين
         ]
-        col_widths = [26*mm, 24*mm, 24*mm, 58*mm, 30*mm, 28*mm]
+        col_widths = [26*mm, 24*mm, 24*mm, 50*mm, 26*mm, 30*mm, 28*mm]
 
         rows = [header_row]
         total_d = total_c = 0.0
@@ -209,6 +210,9 @@ def generate_account_statement_pdf(
                 date = _safe_str(date_raw)
             comp = _safe_str(row.get("Company", ""))
             det  = _safe_str(row.get("Details", ""))[:45]
+            import re
+            docnum_match = re.search(r'-?\s*(\d{6,})', str(row.get("Details", "")))
+            docnum = docnum_match.group(1) if docnum_match else ""
             d    = _safe_num(row.get("DebitAmount",    0))
             c    = _safe_num(row.get("CreditAmount",   0))
             b    = _safe_num(row.get("RunningBalance", 0))
