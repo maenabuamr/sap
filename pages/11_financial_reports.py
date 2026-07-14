@@ -277,7 +277,6 @@ with tab6:
             exp_months_list = ["الكل"] + month_names
             sel_exp_month = st.selectbox("الشهر:", exp_months_list, index=0, key="exp_mo")
         with fcol4:
-            exp_accounts = sorted(expenses_df["اسم الحساب"].dropna().unique().tolist())
 
         # تطبيق الفلاتر
         exp_filtered = expenses_df[expenses_df["الشركة"].isin(sel_company)].copy()
