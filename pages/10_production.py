@@ -19,7 +19,7 @@ def load_orders():
 
 @st.cache_data
 def load_materials():
-    df = pd.read_csv(os.path.join('data', r'production_materials.csv'))
+    df = pd.read_csv(os.path.join('data', r'raw_materials.csv'))
     df["OrderDate"] = pd.to_datetime(df["OrderDate"], format="%m/%d/%Y", errors="coerce")
     df["Year"] = df["OrderDate"].dt.year
     df["Month"] = df["OrderDate"].dt.month
@@ -285,5 +285,6 @@ with tab7:
                 avail = [c for c in det_cols if c in tab7_data.columns]
                 det = tab7_data[avail].sort_values("TotalMaterialCost", ascending=False)
                 st.dataframe(det, use_container_width=True, hide_index=True)
-                st.download_button("تحميل CSV", det.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig"), "pkg.csv", "text/csv")st.divider()
-st.caption("ERP AI Analytics | Production V2.0")
+
+st.divider()
+st.caption("ERP AI Analytics | Production V3.0")
