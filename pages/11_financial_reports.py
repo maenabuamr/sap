@@ -272,16 +272,16 @@ with tab6:
             exp_months_list = ["الكل"] + month_names
             sel_exp_month = st.selectbox("الشهر:", exp_months_list, index=0, key="exp_mo")
         with fcol4:
-            exp_types = sorted(expenses_df["نوع المستند"].dropna().unique().tolist())
-            sel_exp_types = st.multiselect("نوع المصروف:", exp_types, default=exp_types, key="exp_ty")
+            exp_accounts = sorted(expenses_df["اسم الحساب"].dropna().unique().tolist())
+            sel_exp_types = st.multiselect("نوع المصروف (اسم الحساب):", exp_accounts, default=exp_accounts, key="exp_ac")
 
         # تطبيق الفلاتر
         exp_filtered = expenses_df[expenses_df["الشركة"].isin(sel_company)].copy()
         exp_filtered = exp_filtered[exp_filtered["Year"] == sel_exp_year].copy()
         if sel_exp_month != "الكل":
             exp_filtered = exp_filtered[exp_filtered["Month"] == month_names.index(sel_exp_month) + 1]
-        if sel_exp_types:
-            exp_filtered = exp_filtered[exp_filtered["نوع المستند"].isin(sel_exp_types)]
+        if sel_exp_accounts:
+            exp_filtered = exp_filtered[exp_filtered["اسم الحساب"].isin(sel_exp_accounts)]
 
         if exp_filtered.empty:
             st.warning("لا توجد بيانات للفترة المختارة")
