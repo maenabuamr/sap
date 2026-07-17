@@ -29,6 +29,7 @@ from components.credit_charts import render_credit_charts
 from components.collection_priority import render_collection_priority
 from components.credit_table import render_credit_table
 from components.customer_card import render_customer_card
+from components.aging_by_salesperson import render_aging_by_salesperson  # ← الإضافة الجديدة
 
 # باقي كودك يبدأ من هنا
 st.title("💰 Credit Management")
@@ -128,14 +129,15 @@ alerts = generate_alerts(filtered)
 
 
 # ==========================================================
-# TABS
+# TABS (5 تبويبات - تم إضافة Aging by Salesperson)
 # ==========================================================
-tab1, tab2, tab3, tab4 = st.tabs(
+tab1, tab2, tab3, tab4, tab5 = st.tabs(
     [
         "📊 Dashboard",
         "📞 Collection Center",
         "👥 Customers",
         "👤 Customer 360",
+        "👨‍💼 Aging by Salesperson",  # ← التبويب الجديد
     ]
 )
 
@@ -189,6 +191,13 @@ with tab4:
         render_customer_card(single_customer_data)
     else:
         st.info("لا توجد بيانات متاحة بناءً على الفلاتر الحالية.")
+
+
+# ==========================================================
+# 5. AGING BY SALESPERSON (التبويب الجديد - تقرير أعمار الذمم حسب المندوب)
+# ==========================================================
+with tab5:
+    render_aging_by_salesperson(filtered)
 
 
 # ==========================================================
